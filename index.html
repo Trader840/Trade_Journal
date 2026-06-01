@@ -1,0 +1,3437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ICT Trading Journal</title>
+<meta name="theme-color" content="#12100e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ICT Journal">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Azeret+Mono:wght@400;500;700&display=swap');
+:root{
+  --ink:#12100e;--paper:#f2ede4;--cream:#e8e0d0;--warm:#d4c9b0;
+  --bull:#1d4a2a;--bull-lt:#d6e8db;--bear:#4a1d1d;--bear-lt:#e8d6d6;
+  --gold:#8a6800;--gold-lt:#f5ead0;--muted:#7a7060;--border:#c8bfa8;--surface:#faf7f0;
+  --aplus:#0a3a1a;--nav-w:240px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--ink);color:var(--paper);display:flex;align-items:center;padding:0 12px;height:52px;flex-shrink:0;gap:10px;position:relative;z-index:300;}
+.burger{background:none;border:none;color:var(--paper);cursor:pointer;padding:8px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+.burger span{display:block;width:20px;height:2px;background:currentColor;border-radius:2px;transition:all .2s;}
+.topbar-brand{flex:1;}
+.topbar-brand h1{font-family:'Azeret Mono',monospace;font-size:13px;font-weight:700;letter-spacing:2px;}
+.topbar-brand p{font-family:'Azeret Mono',monospace;font-size:8px;color:#6a6050;letter-spacing:1px;margin-top:1px;}
+.topbar-actions{display:flex;align-items:center;gap:6px;}
+.gdrive-btn{display:flex;align-items:center;gap:5px;padding:5px 9px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;cursor:pointer;border:1px solid #3a3530;background:transparent;color:#8a8070;border-radius:3px;transition:all .15s;white-space:nowrap;}
+.gdrive-btn:hover{border-color:#4a8af4;color:#4a8af4;}
+.gdrive-btn.connected{border-color:#34a853;color:#34a853;}
+.gdrive-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.gdrive-label{display:none;}
+
+/* ── LAYOUT ── */
+.app-body{display:flex;flex:1;overflow:hidden;}
+
+/* ── SIDEBAR ── */
+.sidebar{width:var(--nav-w);background:var(--ink);color:var(--paper);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;transition:transform .25s;z-index:200;}
+.sidebar-section{padding:16px 12px 6px;font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:#4a4540;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-left:3px solid transparent;transition:all .15s;color:#8a8070;font-size:13px;font-weight:500;text-decoration:none;border:none;background:none;width:100%;text-align:left;}
+.nav-item:hover{background:#1e1c18;color:var(--paper);}
+.nav-item.active{background:#1e1c18;color:var(--paper);border-left-color:#c8a84a;}
+.nav-item .ni-icon{font-size:16px;flex-shrink:0;width:20px;text-align:center;}
+.nav-item .ni-label{flex:1;}
+.nav-item .ni-badge{background:#c8a84a;color:#12100e;border-radius:9px;padding:1px 7px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;}
+.sidebar-footer{margin-top:auto;padding:16px;border-top:1px solid #2a2520;}
+.sidebar-footer p{font-family:'Azeret Mono',monospace;font-size:9px;color:#4a4540;line-height:1.7;}
+
+/* overlay for mobile */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;}
+.sidebar-overlay.open{display:block;}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;overflow-y:auto;overflow-x:hidden;}
+.page{display:none;min-height:100%;}
+.page.active{display:block;}
+.shell{max-width:860px;margin:0 auto;padding:20px 16px 80px;}
+
+/* ── SCORE STRIP ── */
+.score-strip{background:var(--ink);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
+.score-num{font-family:'Azeret Mono',monospace;font-size:22px;font-weight:700;color:var(--paper);min-width:32px;}
+.score-max{font-family:'Azeret Mono',monospace;font-size:10px;color:#5a5040;align-self:flex-end;padding-bottom:2px;}
+.score-grade{font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;padding:3px 10px;border-radius:3px;letter-spacing:1px;}
+.grade-aplus{background:#c8ffd4;color:var(--aplus);}
+.grade-a{background:var(--bull-lt);color:var(--bull);}
+.grade-b{background:var(--gold-lt);color:var(--gold);}
+.grade-c{background:#ffe8d0;color:#7a3a00;}
+.grade-none{background:var(--bear-lt);color:var(--bear);}
+.score-bar-wrap{flex:1;min-width:100px;}
+.score-bar-bg{height:3px;background:#2a2520;border-radius:3px;overflow:hidden;}
+.score-bar-fill{height:100%;border-radius:3px;transition:width .4s,background .4s;}
+.score-verdict{font-family:'Azeret Mono',monospace;font-size:9px;color:#8a8070;margin-top:3px;}
+.prog-wrap{flex:1;display:flex;align-items:center;gap:8px;min-width:100px;}
+.prog-bg{flex:1;height:2px;background:#3a3530;border-radius:2px;}
+.prog-fill{height:100%;background:var(--bull);border-radius:2px;transition:width .3s;}
+.prog-label{font-family:'Azeret Mono',monospace;font-size:9px;color:#6a6050;white-space:nowrap;}
+
+/* ── SEC HEAD ── */
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1.5px solid var(--border);flex-wrap:wrap;}
+.sec-head h2{font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
+.sec-head p{font-size:11px;color:var(--muted);font-family:'Azeret Mono',monospace;}
+.sec-head-actions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+
+/* ── DASHBOARD ── */
+.dash-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+.stat-box{background:var(--surface);border:1.5px solid var(--border);border-radius:5px;padding:12px 10px;}
+.stat-label{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;}
+.stat-val{font-family:'Azeret Mono',monospace;font-size:22px;font-weight:700;color:var(--ink);line-height:1;}
+.stat-val.bull{color:var(--bull);}.stat-val.bear{color:var(--bear);}.stat-val.gold{color:var(--gold);}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+
+.r-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.r-box{background:var(--surface);border:1.5px solid var(--border);border-radius:5px;padding:10px;text-align:center;}
+.r-box.win-box{border-color:var(--bull);background:var(--bull-lt);}
+.r-box.be-box{border-color:var(--gold);background:var(--gold-lt);}
+.r-box.loss-box{border-color:var(--bear);background:var(--bear-lt);}
+.r-box-label{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;}
+.r-box.win-box .r-box-label{color:var(--bull);}
+.r-box.be-box .r-box-label{color:var(--gold);}
+.r-box.loss-box .r-box-label{color:var(--bear);}
+.r-amounts{display:flex;flex-direction:column;gap:3px;}
+.r-line{display:flex;justify-content:space-between;align-items:center;font-family:'Azeret Mono',monospace;font-size:10px;}
+.r-count{font-weight:700;font-size:13px;}
+
+.dash-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;}
+.dash-card{background:var(--surface);border:1.5px solid var(--border);border-radius:6px;padding:14px;}
+.dash-card-title{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+
+.recent-trade-row{display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--cream);border-radius:4px;cursor:pointer;margin-bottom:4px;}
+.recent-trade-row:hover{background:var(--warm);}
+.rt-pair{font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;min-width:60px;}
+.rt-date{font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);flex:1;}
+
+.open-banner{background:var(--gold-lt);border:1.5px solid var(--gold);border-radius:6px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.open-banner:hover{background:#f0e0b0;}
+.open-banner-icon{font-size:18px;flex-shrink:0;}
+.open-banner-body{flex:1;}
+.open-banner-title{font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;color:var(--gold);}
+.open-banner-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.drive-bar{background:var(--cream);border:1px solid var(--border);border-radius:4px;padding:7px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);}
+.drive-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.drive-dot.on{background:#34a853;}.drive-dot.off{background:#c0a0a0;}
+
+/* Quick nav tiles on home */
+.quick-nav{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+.qn-tile{background:var(--ink);color:var(--paper);border-radius:6px;padding:16px;cursor:pointer;display:flex;align-items:center;gap:12px;border:none;width:100%;text-align:left;transition:opacity .15s;}
+.qn-tile:hover{opacity:.85;}
+.qn-tile .qt-icon{font-size:22px;flex-shrink:0;}
+.qn-tile .qt-label{font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;}
+.qn-tile .qt-sub{font-size:11px;color:#8a8070;margin-top:2px;}
+.qn-tile.gold-tile{background:var(--gold-lt);color:var(--gold);}
+.qn-tile.gold-tile .qt-sub{color:var(--muted);}
+
+/* ── SCORE CARD CHECKLIST ── */
+.score-card{background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:10px;transition:border-color .2s;}
+.score-card.scored{border-color:var(--bull);}
+.score-card.scored-neutral{border-color:var(--gold);}
+.score-card.scored-bad{border-color:var(--bear);}
+.card-head{padding:10px 12px;display:flex;align-items:center;gap:8px;background:var(--cream);border-bottom:1px solid var(--border);}
+.card-num{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;background:var(--ink);color:var(--paper);border-radius:3px;padding:2px 6px;min-width:24px;text-align:center;flex-shrink:0;}
+.score-card.scored .card-num{background:var(--bull);}
+.score-card.scored-neutral .card-num{background:var(--gold);}
+.score-card.scored-bad .card-num{background:var(--bear);}
+.card-title-wrap{flex:1;}
+.card-title{font-size:13px;font-weight:600;}
+.card-tf{font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;}
+.card-pts-badge{font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;border:1px solid var(--border);color:var(--muted);background:var(--paper);white-space:nowrap;flex-shrink:0;}
+.score-card.scored .card-pts-badge{background:var(--bull-lt);border-color:var(--bull);color:var(--bull);}
+.score-card.scored-neutral .card-pts-badge{background:var(--gold-lt);border-color:var(--gold);color:var(--gold);}
+.score-card.scored-bad .card-pts-badge{background:var(--bear-lt);border-color:var(--bear);color:var(--bear);}
+.drop-row{padding:10px 12px;border-bottom:1px solid var(--cream);}
+.drop-row:last-child{border-bottom:none;}
+.drop-label{font-size:13px;font-weight:500;line-height:1.4;margin-bottom:2px;}
+.drop-hint{font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);line-height:1.4;margin-bottom:6px;}
+.drop-select{width:100%;background:var(--paper);border:1.5px solid var(--border);border-radius:4px;padding:8px 10px;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);outline:none;cursor:pointer;transition:border-color .15s;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a7060'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+.drop-select.sel-good{border-color:var(--bull);background-color:#f0f8f2;}
+.drop-select.sel-ok{border-color:var(--gold);background-color:#fdf8ec;}
+.drop-select.sel-bad{border-color:var(--bear);background-color:#faf0f0;}
+.drop-pts{font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;margin-top:4px;color:var(--muted);}
+.drop-pts.pts-good{color:var(--bull);}.drop-pts.pts-ok{color:var(--gold);}.drop-pts.pts-bad{color:var(--bear);}
+
+/* Kill section */
+.kill-section{background:#faf0f0;border:1.5px solid #d4a0a0;border-radius:6px;overflow:hidden;margin-bottom:10px;}
+.kill-head{padding:10px 12px;display:flex;align-items:center;gap:8px;background:#f5e8e8;border-bottom:1px solid #d4a0a0;cursor:pointer;}
+.kill-head h3{flex:1;font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;color:var(--bear);letter-spacing:1px;}
+.kill-list.open{display:block;}.kill-list{display:none;}
+.kill-item{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-bottom:1px solid #f0d8d8;cursor:pointer;}
+.kill-item:last-child{border-bottom:none;}.kill-item:hover{background:#f5e8e8;}.kill-item.on{background:#f0d0d0;}
+.kbox{width:15px;height:15px;border:1.5px solid #c09090;border-radius:3px;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:transparent;}
+.kill-item.on .kbox{background:var(--bear);border-color:var(--bear);color:#fff;}
+.kill-text{font-size:12px;color:#6a3030;line-height:1.4;}
+.kill-item.on .kill-text{text-decoration:line-through;font-weight:600;color:var(--bear);}
+
+/* Grade legend */
+.grade-legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);}
+.legend-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+
+/* Score table */
+.score-table{width:100%;border-collapse:collapse;font-size:11px;}
+.score-table td{padding:5px 12px;border-bottom:1px solid var(--cream);}
+.score-table tr:last-child td{border-bottom:none;}
+.score-table .st-label{color:var(--muted);font-family:'Azeret Mono',monospace;font-size:9px;}
+.score-table .st-val{font-weight:600;text-align:right;}
+
+/* Verdict */
+.verdict{background:var(--surface);border:1.5px solid var(--border);border-radius:6px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.v-icon{font-size:20px;flex-shrink:0;}
+.v-body{flex:1;}
+.v-title{font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;margin-bottom:2px;}
+.v-msg{font-size:12px;color:var(--muted);line-height:1.5;}
+
+/* ── BUTTONS ── */
+.btn-primary{padding:9px 16px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;border:2px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:4px;transition:all .15s;touch-action:manipulation;}
+.btn-primary:hover{background:transparent;color:var(--ink);}
+.btn-ghost{padding:9px 12px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;border:1.5px solid var(--border);background:transparent;color:var(--muted);border-radius:4px;transition:all .15s;touch-action:manipulation;}
+.btn-ghost:hover{border-color:var(--ink);color:var(--ink);}
+.btn-gold{padding:9px 16px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;border:2px solid var(--gold);background:var(--gold);color:#fff;border-radius:4px;transition:all .15s;touch-action:manipulation;}
+.btn-gold:hover{background:transparent;color:var(--gold);}
+.btn-reset{padding:9px 16px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;border:2px solid #8b1a1a;background:#8b1a1a;color:#fff;border-radius:4px;transition:all .15s;touch-action:manipulation;}
+.btn-reset:hover{background:transparent;color:#8b1a1a;}
+.btn-sm{padding:5px 10px;font-size:8px;}
+
+/* ── FIELDS / FORMS ── */
+.field{display:flex;flex-direction:column;gap:4px;}
+.field label{font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+.field input,.field select,.field textarea{background:var(--surface);border:1.5px solid var(--border);border-radius:4px;padding:8px 10px;font-family:'Familjen Grotesk',sans-serif;font-size:14px;color:var(--ink);outline:none;transition:border-color .15s;width:100%;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--ink);}
+.field textarea{resize:vertical;min-height:60px;}
+.field-row{display:flex;gap:8px;flex-wrap:wrap;}
+.field-row .field{flex:1;min-width:120px;}
+.auto-field{background:var(--cream);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-family:'Azeret Mono',monospace;font-size:11px;color:var(--ink);}
+.auto-field.bull-f{background:var(--bull-lt);color:var(--bull);}
+.auto-field.bear-f{background:var(--bear-lt);color:var(--bear);}
+.seg-btns{display:flex;gap:0;border:1.5px solid var(--border);border-radius:4px;overflow:hidden;}
+.seg-btn{flex:1;padding:8px 4px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;cursor:pointer;border:none;border-right:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .12s;touch-action:manipulation;}
+.seg-btn:last-child{border-right:none;}
+.seg-btn.sel-bull{background:var(--bull-lt);color:var(--bull);}
+.seg-btn.sel-bear{background:var(--bear-lt);color:var(--bear);}
+.seg-btn.sel-win{background:var(--bull-lt);color:var(--bull);}
+.seg-btn.sel-loss{background:var(--bear-lt);color:var(--bear);}
+.seg-btn.sel-open{background:var(--gold-lt);color:var(--gold);}
+.seg-btn.sel-skip{background:var(--cream);color:var(--muted);}
+
+/* ── SCREENSHOTS ── */
+.upload-zone{border:2px dashed var(--border);border-radius:6px;padding:16px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface);}
+.upload-zone:hover{border-color:var(--ink);}
+.upload-zone p{font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:4px;}
+.upload-zone input[type=file]{display:none;}
+.ss-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px;margin-top:8px;}
+.ss-thumb{position:relative;aspect-ratio:16/9;border-radius:4px;overflow:hidden;border:1px solid var(--border);cursor:pointer;}
+.ss-thumb img{width:100%;height:100%;object-fit:cover;}
+.ss-del{position:absolute;top:2px;right:2px;background:rgba(74,29,29,.85);color:#fff;border:none;border-radius:2px;padding:1px 5px;font-size:8px;cursor:pointer;}
+.ss-lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(18,16,14,.7);font-family:'Azeret Mono',monospace;font-size:7px;color:#fff;padding:2px 4px;text-align:center;}
+.ss-tf-sel{position:absolute;bottom:0;left:0;right:0;background:rgba(18,16,14,.82);font-family:'Azeret Mono',monospace;font-size:7px;color:#fff;padding:2px 4px;border:none;outline:none;cursor:pointer;width:100%;text-align:center;appearance:none;-webkit-appearance:none;}
+.ss-item{display:flex;flex-direction:column;}
+.ss-thumb.ro{border-radius:4px 4px 0 0;border-bottom:none;}
+.ss-del-bar{border:1px solid var(--border);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;}
+.ss-del-btn{width:100%;padding:4px 0;font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;cursor:pointer;border:none;background:#faf0f0;color:var(--bear);transition:background .12s;touch-action:manipulation;}
+.ss-del-btn:hover{background:var(--bear);color:#fff;}
+
+/* ── PILLS ── */
+.pill{display:inline-block;padding:2px 7px;border-radius:3px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;}
+.pill-bull{background:var(--bull-lt);color:var(--bull);}
+.pill-bear{background:var(--bear-lt);color:var(--bear);}
+.pill-win{background:var(--bull-lt);color:var(--bull);}
+.pill-loss{background:var(--bear-lt);color:var(--bear);}
+.pill-open{background:var(--gold-lt);color:var(--gold);}
+.pill-skip{background:var(--cream);color:var(--muted);}
+.pill-aplus{background:#c8ffd4;color:var(--aplus);}
+.pill-a{background:var(--bull-lt);color:var(--bull);}
+.pill-b{background:var(--gold-lt);color:var(--gold);}
+.pill-c{background:#ffe8d0;color:#7a3a00;}
+.pill-none{background:var(--bear-lt);color:var(--bear);}
+.pill-yes{background:var(--bull-lt);color:var(--bull);}
+.pill-no{background:var(--bear-lt);color:var(--bear);}
+.pill-neutral{background:var(--cream);color:var(--muted);}
+
+/* ── OPEN TRADE CARD ── */
+.otc{background:var(--surface);border:1.5px solid var(--gold);border-radius:6px;overflow:hidden;margin-bottom:12px;}
+.otc-head{padding:10px 12px;display:flex;align-items:center;gap:8px;background:var(--gold-lt);border-bottom:1px solid var(--gold);flex-wrap:wrap;}
+.otc-pair{font-family:'Azeret Mono',monospace;font-size:14px;font-weight:700;color:var(--gold);}
+.otc-meta{font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);}
+.otc-score{margin-left:auto;}
+.otc-body{padding:12px;}
+.otc-prices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+.otc-field label{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:3px;}
+.otc-field input{background:var(--paper);border:1.5px solid var(--border);border-radius:4px;padding:7px 8px;font-family:'Azeret Mono',monospace;font-size:12px;color:var(--ink);outline:none;width:100%;}
+.otc-field input:focus{border-color:var(--gold);}
+.otc-notes{background:var(--paper);border:1.5px solid var(--border);border-radius:4px;padding:7px 8px;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);outline:none;width:100%;resize:vertical;min-height:50px;}
+.otc-notes:focus{border-color:var(--gold);}
+.otc-actions{display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--cream);}
+.time-badge{font-family:'Azeret Mono',monospace;font-size:8px;background:var(--ink);color:var(--paper);border-radius:3px;padding:2px 6px;}
+
+/* ── CLOSED TRADES TABLE ── */
+.ct-wrap{overflow-x:auto;}
+.ct-table{width:100%;border-collapse:collapse;font-size:11px;}
+.ct-table th{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:7px 8px;text-align:left;background:var(--cream);border-bottom:1.5px solid var(--border);white-space:nowrap;}
+.ct-table td{padding:8px 8px;border-bottom:1px solid var(--cream);vertical-align:middle;white-space:nowrap;}
+.ct-table tr:hover td{background:var(--cream);}
+.ct-table tr:last-child td{border-bottom:none;}
+.del-btn{padding:3px 8px;font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:3px;transition:all .12s;touch-action:manipulation;}
+.del-btn:hover{border-color:var(--bear);color:var(--bear);}
+.edit-btn{padding:3px 8px;font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:3px;transition:all .12s;margin-right:3px;touch-action:manipulation;}
+.edit-btn:hover{border-color:var(--gold);color:var(--gold);}
+.score-cell{font-family:'Azeret Mono',monospace;font-size:12px;font-weight:700;}
+.empty-state{text-align:center;padding:40px;font-family:'Azeret Mono',monospace;font-size:10px;color:var(--muted);line-height:2.2;}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(18,16,14,.75);z-index:500;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--paper);border:2px solid var(--ink);border-radius:8px;width:100%;max-width:540px;margin:auto;}
+.modal-head{padding:12px 16px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--cream);}
+.modal-head h3{flex:1;font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.5px;}
+.modal-close{font-size:16px;cursor:pointer;color:var(--muted);background:none;border:none;padding:2px 6px;touch-action:manipulation;}
+.modal-body{padding:16px;display:flex;flex-direction:column;gap:10px;max-height:75vh;overflow-y:auto;}
+.modal-footer{padding:10px 16px;border-top:1.5px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:var(--cream);flex-wrap:wrap;}
+
+/* Drive modal */
+.drive-acc-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:5px;cursor:pointer;transition:all .15s;margin-bottom:6px;}
+.drive-acc-item:hover{border-color:var(--gold);}
+.drive-acc-item.active{border-color:#34a853;background:#f0fff4;}
+.drive-avatar{width:28px;height:28px;border-radius:50%;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.drive-acc-info{flex:1;}
+.drive-acc-email{font-size:12px;font-weight:600;}
+.drive-acc-label{font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);}
+
+/* Lightbox */
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1000;align-items:center;justify-content:center;cursor:zoom-out;}
+.lightbox.open{display:flex;}
+.lightbox img{max-width:95vw;max-height:93vh;border-radius:4px;object-fit:contain;}
+.lb-close{position:fixed;top:12px;right:12px;color:#fff;font-size:22px;cursor:pointer;background:rgba(0,0,0,.5);border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;}
+
+/* Search */
+.search-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.search-input{flex:1;min-width:140px;background:var(--surface);border:1.5px solid var(--border);border-radius:4px;padding:8px 10px;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);outline:none;}
+.search-input:focus{border-color:var(--ink);}
+.filter-sel{background:var(--surface);border:1.5px solid var(--border);border-radius:4px;padding:8px 8px;font-family:'Azeret Mono',monospace;font-size:9px;color:var(--ink);outline:none;cursor:pointer;}
+
+/* Install banner */
+.install-banner{background:var(--ink);border-radius:6px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;}
+.install-banner p{flex:1;font-family:'Azeret Mono',monospace;font-size:9px;color:#8a8070;line-height:1.6;}
+.install-banner strong{color:var(--paper);}
+
+/* ── MOBILE ── */
+
+/* ── TAGS ── */
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;cursor:default;border:1.5px solid transparent;}
+.tag-weekly{background:#e8eaf6;color:#3949ab;border-color:#9fa8da;}
+.tag-intraday{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;}
+.tag-custom{background:var(--cream);color:var(--muted);border-color:var(--border);}
+.tag-clickable{cursor:pointer;transition:opacity .15s;}
+.tag-clickable:hover{opacity:.75;}
+.tag-input-wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface);min-height:38px;cursor:text;}
+.tag-input-wrap:focus-within{border-color:var(--ink);}
+.tag-input{border:none;outline:none;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);background:transparent;min-width:80px;flex:1;}
+.tag-filter-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;}
+
+/* ── WEEKLY BIAS CARDS ── */
+.wb-card{background:var(--surface);border:2px solid #9fa8da;border-radius:8px;overflow:hidden;margin-bottom:12px;}
+.wb-card-head{padding:12px 14px;display:flex;align-items:center;gap:10px;background:#e8eaf6;border-bottom:1.5px solid #9fa8da;flex-wrap:wrap;}
+.wb-pair{font-family:'Azeret Mono',monospace;font-size:15px;font-weight:700;color:#3949ab;}
+.wb-meta{font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);}
+.wb-bias{font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;padding:3px 10px;border-radius:3px;}
+.wb-bias-bull{background:var(--bull-lt);color:var(--bull);}
+.wb-bias-bear{background:var(--bear-lt);color:var(--bear);}
+.wb-body{padding:12px 14px;}
+.wb-notes{font-size:12px;line-height:1.6;color:var(--ink);margin-bottom:8px;white-space:pre-wrap;}
+.wb-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.wb-intraday-list{margin-top:10px;padding-top:10px;border-top:1px solid #d0d4f0;}
+.wb-intraday-label{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:6px;}
+.wb-intraday-item{display:flex;align-items:center;gap:8px;padding:5px 8px;background:#f0f2ff;border-radius:4px;margin-bottom:4px;cursor:pointer;font-size:12px;}
+.wb-intraday-item:hover{background:#e0e4ff;}
+.wb-intraday-pair{font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;color:#3949ab;min-width:60px;}
+
+/* ── INTRADAY CHECKLIST ── */
+.intra-score-strip{background:#283593;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
+.intra-context-bar{background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:5px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.intra-context-label{font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;}
+.intra-context-val{font-family:'Azeret Mono',monospace;font-size:12px;font-weight:700;color:#283593;}
+
+/* page tabs (weekly / intraday sub mode) */
+.mode-tabs{display:flex;gap:0;border:1.5px solid var(--border);border-radius:5px;overflow:hidden;margin-bottom:14px;}
+.mode-tab{flex:1;padding:9px 10px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;border:none;border-right:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .12s;text-align:center;}
+.mode-tab:last-child{border-right:none;}
+.mode-tab.active{background:var(--ink);color:var(--paper);}
+.mode-tab.active-blue{background:#283593;color:#fff;}
+
+@media(max-width:700px){
+  .sidebar{position:fixed;top:52px;left:0;bottom:0;transform:translateX(-100%);z-index:200;}
+  .sidebar.open{transform:translateX(0);}
+  .dash-stats{grid-template-columns:repeat(2,1fr);}
+  .dash-grid2{grid-template-columns:1fr;}
+  .r-grid{grid-template-columns:1fr;}
+  .otc-prices{grid-template-columns:repeat(2,1fr);}
+  .quick-nav{grid-template-columns:1fr;}
+  .gdrive-label{display:none;}
+}
+@media(min-width:701px){
+  .sidebar-overlay{display:none!important;}
+  .gdrive-label{display:inline;}
+}
+
+/* ── AUTH SCREEN ── */
+.auth-screen{position:fixed;inset:0;background:var(--ink);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+.auth-box{background:#1a1814;border:1.5px solid #2a2520;border-radius:10px;padding:28px 24px;width:100%;max-width:340px;}
+.auth-logo{font-family:'Azeret Mono',monospace;font-size:16px;font-weight:700;color:var(--paper);letter-spacing:3px;margin-bottom:3px;}
+.auth-sub{font-family:'Azeret Mono',monospace;font-size:8px;color:#5a5040;letter-spacing:1.5px;margin-bottom:22px;}
+.auth-tab-row{display:flex;gap:0;margin-bottom:16px;border:1.5px solid #2a2520;border-radius:5px;overflow:hidden;}
+.auth-tab{flex:1;padding:8px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;border:none;background:transparent;color:#5a5040;}
+.auth-tab.active{background:#c8a84a;color:#12100e;}
+.auth-field{margin-bottom:10px;}
+.auth-field label{display:block;font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#5a5040;text-transform:uppercase;margin-bottom:4px;}
+.auth-field input{width:100%;background:#12100e;border:1.5px solid #2a2520;border-radius:4px;padding:9px 10px;font-family:'Familjen Grotesk',sans-serif;font-size:14px;color:var(--paper);outline:none;}
+.auth-field input:focus{border-color:#c8a84a;}
+.auth-btn{width:100%;padding:10px;font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;border:2px solid #c8a84a;background:#c8a84a;color:#12100e;border-radius:4px;margin-top:4px;}
+.auth-btn:hover{background:transparent;color:#c8a84a;}
+.auth-btn-ghost{width:100%;padding:8px;font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;cursor:pointer;border:1px solid #3a3530;background:transparent;color:#5a5040;border-radius:4px;margin-top:6px;}
+.auth-msg{font-family:'Azeret Mono',monospace;font-size:9px;margin-top:8px;padding:7px 10px;border-radius:4px;display:none;}
+.auth-msg.err{background:#2a0a0a;color:#ff8080;border:1px solid #4a1a1a;display:block;}
+.auth-msg.ok{background:#0a2a0a;color:#80ff80;border:1px solid #1a4a1a;display:block;}
+.auth-loading{text-align:center;font-family:'Azeret Mono',monospace;font-size:9px;color:#5a5040;padding:6px 0;}
+/* sync indicator */
+.sync-indicator{display:flex;align-items:center;gap:4px;font-family:'Azeret Mono',monospace;font-size:9px;padding:3px 8px;border-radius:3px;border:1px solid #3a3530;color:#6a6050;}
+.sync-indicator.syncing{border-color:#c8a84a;color:#c8a84a;}
+.sync-indicator.synced{border-color:#34a853;color:#34a853;}
+.sync-indicator.error{border-color:#ff5555;color:#ff5555;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin .8s linear infinite;}
+/* toast */
+.toast-msg{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-family:'Azeret Mono',monospace;font-size:10px;padding:10px 18px;border-radius:5px;z-index:9998;border-left:3px solid #34a853;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.4);pointer-events:none;opacity:0;transition:opacity .3s;}
+.toast-msg.show{opacity:1;}
+.toast-msg.err{border-left-color:#ff5555;}
+.toast-msg.warn{border-left-color:#c8a84a;}
+
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+
+<!-- ══ AUTH SCREEN ══ -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <div class="auth-logo">ICT JOURNAL</div>
+    <div class="auth-sub">D · 4H · 1H · SCORED</div>
+    <div class="auth-tab-row">
+      <button class="auth-tab active" id="atLogin" onclick="authTab('login')">SIGN IN</button>
+      <button class="auth-tab" id="atSignup" onclick="authTab('signup')">CREATE ACCOUNT</button>
+    </div>
+    <div id="afLogin">
+      <div class="auth-field"><label>Email</label><input type="email" id="authEmail" placeholder="you@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="authPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="auth-btn" onclick="doLogin()">SIGN IN →</button>
+      <button class="auth-btn-ghost" onclick="doReset()">FORGOT PASSWORD?</button>
+    </div>
+    <div id="afSignup" style="display:none">
+      <div class="auth-field"><label>Email</label><input type="email" id="authEmailS" placeholder="you@email.com"></div>
+      <div class="auth-field"><label>Password (min 6 chars)</label><input type="password" id="authPassS" placeholder="••••••••"></div>
+      <button class="auth-btn" onclick="doSignup()">CREATE ACCOUNT →</button>
+    </div>
+    <div class="auth-loading" id="authLoading" style="display:none">Connecting…</div>
+    <div class="auth-msg" id="authMsg"></div>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast-msg" id="toastMsg"></div>
+
+<div class="topbar">
+  <button class="burger" onclick="toggleSidebar()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="topbar-brand">
+    <h1>ICT JOURNAL</h1>
+    <p>D · 4H · 1H · SCORED</p>
+  </div>
+  <div class="topbar-actions">
+    <button class="gdrive-btn" id="driveBtn" onclick="openDriveModal()">
+      <span class="gdrive-dot"></span>
+      <span class="gdrive-label">BACKUP</span>
+    </button>
+  </div>
+</div>
+
+<!-- SIDEBAR OVERLAY -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- APP BODY -->
+<div class="app-body">
+
+  <!-- SIDEBAR NAV -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-section">Navigation</div>
+    <button class="nav-item active" id="navitem-home" onclick="navTo('home')">
+      <span class="ni-icon">🏠</span>
+      <span class="ni-label">Dashboard</span>
+    </button>
+    <button class="nav-item" id="navitem-idea" onclick="navTo('idea')">
+      <span class="ni-icon">💡</span>
+      <span class="ni-label">New Trade Idea</span>
+    </button>
+    <button class="nav-item" id="navitem-weekly" onclick="navTo('weekly')">
+      <span class="ni-icon">📅</span>
+      <span class="ni-label">Weekly Bias</span>
+      <span class="ni-badge" id="weeklyBadge" style="display:none">0</span>
+    </button>
+    <button class="nav-item" id="navitem-intraday" onclick="navTo('intraday')">
+      <span class="ni-icon">⚡</span>
+      <span class="ni-label">Intraday Ideas</span>
+      <span class="ni-badge" id="intradayBadge" style="display:none">0</span>
+    </button>
+    <button class="nav-item" id="navitem-open" onclick="navTo('open')">
+      <span class="ni-icon">📂</span>
+      <span class="ni-label">Open Trades</span>
+      <span class="ni-badge" id="openBadge" style="display:none">0</span>
+    </button>
+    <button class="nav-item" id="navitem-closed" onclick="navTo('closed')">
+      <span class="ni-icon">📋</span>
+      <span class="ni-label">Closed Trades</span>
+    </button>
+    <div class="sidebar-section" style="margin-top:8px;">Actions</div>
+    <button class="nav-item" onclick="exportExcel()">
+      <span class="ni-icon">⬇</span>
+      <span class="ni-label">Export Excel</span>
+    </button>
+    <button class="nav-item" onclick="openDriveModal()">
+      <span class="ni-icon">☁</span>
+      <span class="ni-label">Backup / Restore</span>
+    </button>
+    <div class="sidebar-footer">
+      <p>ICT Trading Journal<br>D · 4H · 1H Scored<br><span id='sbUserEmail' style='color:#6a6050'></span></p>
+    </div>
+  </nav>
+
+  <!-- CONTENT -->
+  <div class="content" id="content">
+
+    <!-- ══ HOME / DASHBOARD ══ -->
+    <div class="page active" id="page-home">
+    <div class="shell">
+      <div id="installBannerWrap"></div>
+      <div class="drive-bar" id="driveBar">
+        <div class="drive-dot off" id="driveDot"></div>
+        <span id="driveBarText">No backup saved yet</span>
+        <button class="btn-ghost btn-sm" style="margin-left:auto" onclick="openDriveModal()">BACKUP / RESTORE</button>
+      </div>
+
+      <div class="sec-head">
+        <h2>DASHBOARD</h2>
+        <p>Performance overview</p>
+        <div class="sec-head-actions">
+          <button class="btn-ghost btn-sm" onclick="exportExcel()">⬇ EXCEL</button>
+        </div>
+      </div>
+
+      <!-- Forex Heatmap Widget -->
+      <div style="border-radius:6px;overflow:hidden;margin-bottom:14px;border:1.5px solid var(--border)">
+        <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;padding:8px 12px;background:var(--cream);border-bottom:1px solid var(--border)">FOREX HEATMAP</div>
+        <div class="tradingview-widget-container" style="width:100%;height:220px">
+          <div class="tradingview-widget-container__widget" style="width:100%;height:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-forex-heat-map.js" async>
+          {"colorTheme":"dark","isTransparent":false,"locale":"en","currencies":["EUR","USD","GBP","CHF"],"backgroundColor":"#0F0F0F","width":"100%","height":220}
+          </script>
+        </div>
+      </div>
+
+      <!-- Quick nav tiles -->
+      <div class="quick-nav">
+        <button class="qn-tile" onclick="navTo('idea')">
+          <span class="qt-icon">💡</span>
+          <div><div class="qt-label">NEW TRADE IDEA</div><div class="qt-sub">Log tomorrow's setup</div></div>
+        </button>
+        <button class="qn-tile" style="background:#283593" onclick="navTo('weekly')">
+          <span class="qt-icon">📅</span>
+          <div><div class="qt-label">WEEKLY BIAS</div><div class="qt-sub" id="weeklyTileSub">Swing journals</div></div>
+        </button>
+        <button class="qn-tile" style="background:#1b5e20" onclick="navTo('intraday')">
+          <span class="qt-icon">⚡</span>
+          <div><div class="qt-label">INTRADAY IDEAS</div><div class="qt-sub" id="intradayTileSub">Day trade setups</div></div>
+        </button>
+        <button class="qn-tile gold-tile" onclick="navTo('open')">
+          <span class="qt-icon">📂</span>
+          <div><div class="qt-label" id="openTileLabel">OPEN TRADES</div><div class="qt-sub" id="openTileSub">View pending ideas</div></div>
+        </button>
+        <button class="qn-tile" onclick="navTo('closed')" style="background:#2a2520">
+          <span class="qt-icon">📋</span>
+          <div><div class="qt-label">CLOSED TRADES</div><div class="qt-sub">Review history</div></div>
+        </button>
+        <button class="qn-tile" onclick="exportExcel()" style="background:#1a2a3a">
+          <span class="qt-icon">⬇</span>
+          <div><div class="qt-label">EXPORT EXCEL</div><div class="qt-sub">Download trade log</div></div>
+        </button>
+      </div>
+
+      <!-- Stats -->
+      <div class="dash-stats" id="dashStats"></div>
+
+      <!-- R-captured breakdown -->
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">R CAPTURED</div>
+      <div class="r-grid" id="rGrid"></div>
+
+      <!-- Grade breakdown -->
+      <div class="dash-card" style="margin-bottom:12px">
+        <div class="dash-card-title">Grade Breakdown</div>
+        <div id="gradeBreakdown"></div>
+      </div>
+
+      <!-- Open ideas section on home -->
+      <div id="homeOpenSection"></div>
+
+    </div>
+    </div>
+
+    <!-- ══ NEW IDEA ══ -->
+    <div class="page" id="page-idea">
+      <!-- Score strip sticky -->
+      <div class="score-strip" id="scoreStrip">
+        <div class="score-num" id="scoreNum">—</div>
+        <div class="score-max">/10</div>
+        <div class="score-grade grade-none" id="scoreGrade">NO SCORE</div>
+        <div class="score-bar-wrap">
+          <div class="score-bar-bg"><div class="score-bar-fill" id="scoreBarFill" style="width:0%"></div></div>
+          <div class="score-verdict" id="scoreVerdict">Answer dropdowns to score</div>
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-bg"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+          <span class="prog-label" id="progLabel">0/0</span>
+        </div>
+      </div>
+
+      <div class="shell">
+        <div class="sec-head">
+          <h2>NEW TRADE IDEA</h2>
+          <div class="sec-head-actions">
+            <button class="btn-reset" onclick="fullResetChecklist()">🗑 CLEAR ALL</button>
+          </div>
+        </div>
+
+        <div class="grade-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#c8ffd4"></div>A+ ≥9pts</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--bull-lt)"></div>A=8</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--gold-lt)"></div>B=7</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ffe8d0"></div>C=5–6</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--bear-lt)"></div>No Trade &lt;5</div>
+        </div>
+
+        <!-- Bias cards -->
+        <div id="biasCards"></div>
+
+        <!-- Entry section -->
+        <div id="entrySection" style="margin-top:4px"></div>
+
+        <!-- Screenshot + Log form -->
+        <div class="score-card" style="margin-top:4px">
+          <div class="card-head">
+            <div class="card-num">📷</div>
+            <div class="card-title-wrap"><div class="card-title">Chart Screenshot — Idea Stage</div><div class="card-tf">Upload your marked-up setup chart</div></div>
+          </div>
+          <div style="padding:12px">
+            <div class="upload-zone" onclick="document.getElementById('ideaFileIn').click()">
+              <div style="font-size:24px">📊</div>
+              <p>Tap or drag to upload chart screenshot</p>
+              <input type="file" id="ideaFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'idea')">
+            </div>
+            <div class="ss-grid" id="ideaSsGrid"></div>
+          </div>
+        </div>
+
+        <div id="ideaVerdict" style="display:none" class="verdict"></div>
+
+        <!-- Log form -->
+        <div class="score-card">
+          <div class="card-head">
+            <div class="card-num">📝</div>
+            <div class="card-title-wrap"><div class="card-title">Log This Idea</div></div>
+          </div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:10px;">
+            <div class="field-row">
+              <div class="field"><label>Pair / Instrument</label><input type="text" id="ideaPair" placeholder="XAUUSD, EURUSD…"></div>
+              <div class="field"><label>Target Date</label><input type="date" id="ideaDate"></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label>Session</label>
+                <select id="ideaSession"><option>London</option><option>NY Open</option><option>NY Expansion</option></select>
+              </div>
+              <div class="field"><label>Direction (from bias)</label>
+                <div class="auto-field" id="ideaDirAuto">—</div>
+              </div>
+            </div>
+            <div class="field"><label>Tags</label>
+              <div class="tag-input-wrap" id="ideaTagWrap" onclick="document.getElementById('ideaTagInput').focus()">
+                <input class="tag-input" id="ideaTagInput" placeholder="#weekly, #eurusd, press Enter…" onkeydown="handleTagKey(event,'idea')">
+              </div>
+              <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px">Press Enter or comma to add · Backspace to remove last</div>
+            </div>
+            <div class="field"><label>Idea Notes</label><textarea id="ideaNotes" placeholder="Setup rationale, key levels, POI…"></textarea></div>
+            <div id="logFormActions" style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-primary" id="logPrimaryBtn" onclick="saveIdeaAsOpen()">💡 LOG AS OPEN TRADE</button>
+              <button class="btn-ghost" onclick="fullResetChecklist()">🗑 CLEAR ALL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ OPEN TRADES ══ -->
+    <div class="page" id="page-open">
+    <div class="shell">
+      <div class="sec-head">
+        <h2>OPEN TRADES</h2>
+        <p>Ideas pending or in-progress</p>
+      </div>
+      <div id="openContainer">
+        <div class="empty-state">No open trade ideas yet.<br>Go to New Trade Idea to log one.</div>
+      </div>
+    </div>
+    </div>
+
+
+    <!-- ══ WEEKLY BIAS JOURNAL ══ -->
+    <div class="page" id="page-weekly">
+    <div class="shell">
+      <div class="sec-head">
+        <h2>WEEKLY BIAS</h2>
+        <p>Swing journal — open all week, add notes as market develops</p>
+        <div class="sec-head-actions">
+          <button class="btn-primary" onclick="openNewWeeklyModal()">+ NEW BIAS</button>
+        </div>
+      </div>
+      <!-- Tag filter bar -->
+      <div class="tag-filter-bar" id="weeklyTagFilter"></div>
+      <div id="weeklyContainer">
+        <div class="empty-state">No weekly bias entries yet.<br>Tap "NEW BIAS" to create one.</div>
+      </div>
+    </div>
+    </div>
+
+    <!-- ══ INTRADAY IDEAS ══ -->
+    <div class="page" id="page-intraday">
+      <!-- Intraday score strip -->
+      <div class="intra-score-strip" id="intraSS">
+        <div style="font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;color:#fff;min-width:28px" id="intraScoreNum">—</div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:#9fa8da;align-self:flex-end;padding-bottom:1px">/10</div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;background:rgba(255,255,255,.15);color:#fff" id="intraScoreGrade">NO SCORE</div>
+        <div style="flex:1;min-width:80px">
+          <div style="height:3px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden">
+            <div style="height:100%;border-radius:3px;transition:width .4s" id="intraBarFill"></div>
+          </div>
+          <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:#9fa8da;margin-top:2px" id="intraVerdict">Select weekly bias context above</div>
+        </div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:#9fa8da;white-space:nowrap" id="intraProgLabel">0/0</div>
+      </div>
+
+      <div class="shell">
+        <div class="sec-head">
+          <h2>INTRADAY IDEA</h2>
+          <div class="sec-head-actions">
+            <button class="btn-reset" onclick="fullResetIntraday()">🗑 CLEAR</button>
+          </div>
+        </div>
+
+        <!-- Context selector: link to a weekly bias -->
+        <div style="background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:6px;padding:12px 14px;margin-bottom:12px;">
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:6px;">Link to Weekly Bias Context</div>
+          <select id="intraWeeklyLink" style="width:100%;background:var(--paper);border:1.5px solid #9fa8da;border-radius:4px;padding:8px 10px;font-family:'Familjen Grotesk',sans-serif;font-size:13px;color:var(--ink);outline:none;appearance:none;" onchange="onIntraWeeklyLink()">
+            <option value="">— Select active weekly bias (optional) —</option>
+          </select>
+          <div id="intraContextBar" style="display:none;margin-top:8px" class="intra-context-bar">
+            <div>
+              <div class="intra-context-label">Pair</div>
+              <div class="intra-context-val" id="intraCtxPair">—</div>
+            </div>
+            <div>
+              <div class="intra-context-label">Weekly Bias</div>
+              <div class="intra-context-val" id="intraCtxBias">—</div>
+            </div>
+            <div>
+              <div class="intra-context-label">Key Levels</div>
+              <div class="intra-context-val" id="intraCtxNotes" style="font-size:10px;font-weight:400;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grade-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#c8ffd4"></div>A+ ≥9pts</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--bull-lt)"></div>A=8</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--gold-lt)"></div>B=7</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ffe8d0"></div>C=5–6</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--bear-lt)"></div>&lt;5 skip</div>
+        </div>
+
+        <div id="intraBiasCards"></div>
+        <div id="intraEntrySection" style="margin-top:4px"></div>
+
+        <!-- Screenshot -->
+        <div class="score-card" style="margin-top:4px;border-color:#9fa8da">
+          <div class="card-head" style="background:#e8eaf6">
+            <div class="card-num" style="background:#283593">📷</div>
+            <div class="card-title-wrap"><div class="card-title">Chart Screenshot — Intraday</div><div class="card-tf">Upload 15m / 5m setup chart</div></div>
+          </div>
+          <div style="padding:12px">
+            <div class="upload-zone" onclick="document.getElementById('intraFileIn').click()">
+              <div style="font-size:24px">⚡</div>
+              <p>Tap to upload intraday chart screenshot</p>
+              <input type="file" id="intraFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'intra')">
+            </div>
+            <div class="ss-grid" id="intraSsGrid"></div>
+          </div>
+        </div>
+
+        <!-- Log form -->
+        <div class="score-card" style="border-color:#9fa8da">
+          <div class="card-head" style="background:#e8eaf6">
+            <div class="card-num" style="background:#283593">📝</div>
+            <div class="card-title-wrap"><div class="card-title">Log Intraday Idea</div></div>
+          </div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:10px;">
+            <div class="field-row">
+              <div class="field"><label>Pair</label>
+                <div style="position:relative">
+                  <input type="text" id="intraPair" placeholder="Select from weekly or type…" list="intraPairSuggestions">
+                  <datalist id="intraPairSuggestions"></datalist>
+                </div>
+              </div>
+              <div class="field"><label>Date</label><input type="date" id="intraDate"></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label>Session</label>
+                <select id="intraSession"><option>London</option><option>NY Open</option><option>NY Expansion</option><option>Asia</option></select>
+              </div>
+              <div class="field"><label>Direction</label>
+                <div class="auto-field" id="intraDirAuto">—</div>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label>Entry Target</label><input type="number" step="any" id="intraEntry" placeholder="0.00000"></div>
+              <div class="field"><label>Stop Loss</label><input type="number" step="any" id="intraSL" placeholder="0.00000"></div>
+              <div class="field"><label>TP Target</label><input type="number" step="any" id="intraTP" placeholder="0.00000"></div>
+            </div>
+            <div class="field"><label>Trade Type</label>
+              <div class="seg-btns" id="intraTypeBtns">
+                <button class="seg-btn sel-bull" onclick="setIntraType('BUY',this)">▲ BUY / LONG</button>
+                <button class="seg-btn" onclick="setIntraType('SELL',this)">▼ SELL / SHORT</button>
+              </div>
+            </div>
+            <div class="field"><label>Tags</label>
+              <div class="tag-input-wrap" id="intraTagWrap" onclick="document.getElementById('intraTagInput').focus()">
+                <span class="tag tag-intraday">#intraday</span>
+                <input class="tag-input" id="intraTagInput" placeholder="add tag, press Enter…" onkeydown="handleTagKey(event,'intra')">
+              </div>
+              <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px">Press Enter or comma to add · Backspace to remove</div>
+            </div>
+            <div class="field"><label>Idea Notes</label><textarea id="intraNotes" placeholder="Entry rationale, 15m/5m confluence, key levels…"></textarea></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-primary" style="background:#283593;border-color:#283593" onclick="saveIntradayIdea()">⚡ LOG INTRADAY IDEA</button>
+              <button class="btn-ghost" onclick="fullResetIntraday()">🗑 CLEAR</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CLOSED TRADES ══ -->
+    <div class="page" id="page-closed">
+    <div class="shell">
+      <div class="sec-head">
+        <h2>CLOSED TRADES</h2>
+        <div class="sec-head-actions">
+          <button class="btn-ghost btn-sm" onclick="exportExcel()">⬇ EXCEL</button>
+        </div>
+      </div>
+      <div class="search-row">
+        <input class="search-input" id="closedSearch" placeholder="Search pair, notes…" oninput="renderClosed()">
+        <select class="filter-sel" id="filterResult" onchange="renderClosed()">
+          <option value="">All results</option><option>WIN</option><option>LOSS</option><option>SKIP</option>
+        </select>
+        <select class="filter-sel" id="filterGrade" onchange="renderClosed()">
+          <option value="">All grades</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>No Trade</option>
+        </select>
+      </div>
+      <div class="ct-wrap">
+        <table class="ct-table">
+          <thead><tr>
+            <th>Date</th><th>Pair</th><th>Score</th><th>Grade</th>
+            <th>Result</th><th>R</th><th>Entry</th><th>SL</th><th>TP 2R</th><th>TP 1.5R</th>
+            <th>Bias</th><th>Notes</th><th></th>
+          </tr></thead>
+          <tbody id="closedBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="closedEmpty" style="display:none">No closed trades match filters.</div>
+    </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app-body -->
+
+<!-- ══ CLOSE TRADE MODAL ══ -->
+<div class="modal-overlay" id="closeModal">
+<div class="modal">
+  <div class="modal-head">
+    <h3 id="closeModalTitle">CLOSE TRADE</h3>
+    <button class="modal-close" onclick="closeModalHide()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div style="background:var(--cream);border:1.5px solid var(--border);border-radius:5px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
+      <div style="flex:1">
+        <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Auto Result</div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:13px;font-weight:700" id="cmAutoResult">— Enter prices below</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Mark as Skip?</div>
+        <div class="seg-btns" id="cmResultBtns" style="max-width:160px">
+          <button class="seg-btn" onclick="cmSeg(this,'result','SKIP','sel-skip')">SKIP TRADE</button>
+          <button class="seg-btn" onclick="cmClearSkip(this)">CLEAR</button>
+        </div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Entry Price</label><input type="number" step="any" id="cmEntry" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
+      <div class="field"><label>Close Price</label><input type="number" step="any" id="cmClose" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
+      <div class="field"><label>Stop Loss</label><input type="number" step="any" id="cmSL" placeholder="0.00000" oninput="updateCmAutoResult()"></div>
+    </div>
+    <div class="field"><label>Bias Played Out</label>
+      <div class="seg-btns" id="cmBiasBtns">
+        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','BULLISH','sel-bull')">▲ BULL</button>
+        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','BEARISH','sel-bear')">▼ BEAR</button>
+        <button class="seg-btn" onclick="cmSeg(this,'biasPlayed','NEUTRAL','sel-skip')">— NEUT</button>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Hit TP 2R?</label>
+        <div class="seg-btns" id="cmTp2Btns">
+          <button class="seg-btn" onclick="cmSeg(this,'tp2r','YES','sel-win')">YES</button>
+          <button class="seg-btn" onclick="cmSeg(this,'tp2r','NO','sel-loss')">NO</button>
+          <button class="seg-btn" onclick="cmSeg(this,'tp2r','N/A','sel-skip')">N/A</button>
+        </div>
+      </div>
+      <div class="field"><label>Hit TP 1.5R?</label>
+        <div class="seg-btns" id="cmTp15Btns">
+          <button class="seg-btn" onclick="cmSeg(this,'tp15r','YES','sel-win')">YES</button>
+          <button class="seg-btn" onclick="cmSeg(this,'tp15r','NO','sel-loss')">NO</button>
+          <button class="seg-btn" onclick="cmSeg(this,'tp15r','N/A','sel-skip')">N/A</button>
+        </div>
+      </div>
+    </div>
+    <div class="field"><label>EOD Chart Screenshot</label>
+      <div class="upload-zone" style="padding:10px" onclick="document.getElementById('cmFileIn').click()">
+        <div style="font-size:18px">📸</div><p>Upload EOD chart (how it played out)</p>
+        <input type="file" id="cmFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'cm')">
+      </div>
+      <div class="ss-grid" id="cmSsGrid"></div>
+    </div>
+    <div class="field"><label>Post-Trade Notes</label><textarea id="cmNotes" placeholder="What happened? Lessons learned…"></textarea></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-ghost" onclick="closeModalHide()">CANCEL</button>
+    <button class="btn-primary" onclick="saveClosure()">CLOSE TRADE & UPDATE DASHBOARD</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ EDIT OPEN TRADE MODAL ══ -->
+<div class="modal-overlay" id="editOpenModal">
+<div class="modal">
+  <div class="modal-head">
+    <h3 id="editOpenTitle">EDIT OPEN TRADE</h3>
+    <button class="modal-close" onclick="document.getElementById('editOpenModal').classList.remove('open')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="field-row">
+      <div class="field"><label>Pair</label><input type="text" id="eoiPair"></div>
+      <div class="field"><label>Date</label><input type="date" id="eoiDate"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Entry Price</label><input type="number" step="any" id="eoiEntry" placeholder="0.00000"></div>
+      <div class="field"><label>Stop Loss</label><input type="number" step="any" id="eoiSL" placeholder="0.00000"></div>
+      <div class="field"><label>Current Price</label><input type="number" step="any" id="eoiCurrent" placeholder="0.00000"></div>
+    </div>
+    <div class="field"><label>Updated Notes / Chart Developments</label>
+      <textarea id="eoiNotes" placeholder="How is the setup developing? Any updates…" style="min-height:70px"></textarea>
+    </div>
+    <div class="field"><label>Add Screenshot</label>
+      <div class="upload-zone" style="padding:10px" onclick="document.getElementById('eoiFileIn').click()">
+        <div style="font-size:18px">📊</div><p>Add updated chart screenshot</p>
+        <input type="file" id="eoiFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'eoi')">
+      </div>
+      <div class="ss-grid" id="eoiSsGrid"></div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-ghost" onclick="document.getElementById('editOpenModal').classList.remove('open')">CANCEL</button>
+    <button class="btn-primary" onclick="saveEditOpen()">SAVE CHANGES</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ EDIT CLOSED TRADE MODAL ══ -->
+<div class="modal-overlay" id="editClosedModal">
+<div class="modal">
+  <div class="modal-head">
+    <h3 id="editClosedTitle">EDIT CLOSED TRADE</h3>
+    <button class="modal-close" onclick="document.getElementById('editClosedModal').classList.remove('open')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div style="background:var(--cream);border:1.5px solid var(--border);border-radius:5px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <div style="flex:1">
+        <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Current Result</div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:13px;font-weight:700" id="ecAutoResult">—</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">Override as Skip?</div>
+        <div class="seg-btns" id="ecResultBtns" style="max-width:160px">
+          <button class="seg-btn" onclick="ecSeg(this,'result','SKIP','sel-skip')">SKIP TRADE</button>
+          <button class="seg-btn" onclick="ecClearSkip(this)">CLEAR</button>
+        </div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Entry Price</label><input type="number" step="any" id="ecEntry" placeholder="0.00000" oninput="updateEcAutoResult()"></div>
+      <div class="field"><label>Close Price</label><input type="number" step="any" id="ecClose" placeholder="0.00000" oninput="updateEcAutoResult()"></div>
+      <div class="field"><label>Stop Loss</label><input type="number" step="any" id="ecSL" placeholder="0.00000" oninput="updateEcAutoResult()"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>TP 2R Hit?</label>
+        <div class="seg-btns" id="ecTp2Btns">
+          <button class="seg-btn" onclick="ecSeg(this,'tp2r','YES','sel-win')">YES</button>
+          <button class="seg-btn" onclick="ecSeg(this,'tp2r','NO','sel-loss')">NO</button>
+          <button class="seg-btn" onclick="ecSeg(this,'tp2r','N/A','sel-skip')">N/A</button>
+        </div>
+      </div>
+      <div class="field"><label>TP 1.5R Hit?</label>
+        <div class="seg-btns" id="ecTp15Btns">
+          <button class="seg-btn" onclick="ecSeg(this,'tp15r','YES','sel-win')">YES</button>
+          <button class="seg-btn" onclick="ecSeg(this,'tp15r','NO','sel-loss')">NO</button>
+          <button class="seg-btn" onclick="ecSeg(this,'tp15r','N/A','sel-skip')">N/A</button>
+        </div>
+      </div>
+    </div>
+    <div class="field"><label>Follow-up Notes</label>
+      <textarea id="ecFollowup" placeholder="Follow-up observations, lessons, what played out…" style="min-height:70px"></textarea>
+    </div>
+    <div class="field"><label>Add Follow-up Screenshot</label>
+      <div class="upload-zone" style="padding:10px" onclick="document.getElementById('ecFileIn').click()">
+        <div style="font-size:16px">📸</div><p>Add follow-up chart screenshot</p>
+        <input type="file" id="ecFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'ec')">
+      </div>
+      <div class="ss-grid" id="ecSsGrid"></div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-ghost" onclick="document.getElementById('editClosedModal').classList.remove('open')">CANCEL</button>
+    <button class="btn-primary" onclick="saveEditClosed()">SAVE CHANGES</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ GOOGLE DRIVE MODAL ══ -->
+<div class="modal-overlay" id="driveModal">
+<div class="modal" style="max-width:440px">
+  <div class="modal-head">
+    <h3>BACKUP &amp; AUTO-EXPORT</h3>
+    <button class="modal-close" onclick="document.getElementById('driveModal').classList.remove('open')">✕</button>
+  </div>
+  <div class="modal-body">
+
+    <!-- Auto-export folder -->
+    <div style="margin-bottom:14px">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Auto-Export Folder</div>
+      <p style="font-size:11px;color:var(--ink);line-height:1.6;margin-bottom:8px">Select the folder your sync app watches. The journal will automatically write a backup file there every week when you open the app.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-primary" style="flex:1" onclick="pickExportFolder()">📁 SELECT FOLDER</button>
+        <button class="btn-ghost" id="clearFolderBtn" onclick="clearExportFolder()" style="display:none">✕ CLEAR</button>
+      </div>
+      <div style="font-family:'Azeret Mono',monospace;font-size:9px;margin-top:8px;padding:7px 10px;border-radius:4px;border:1px solid var(--border)" id="folderStatus">
+        No folder selected
+      </div>
+    </div>
+
+    <!-- Manual export now -->
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:2px;margin-bottom:14px">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Manual Export</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" style="flex:1" id="exportToFolderBtn" onclick="exportToFolder()" style="display:none">⬇ WRITE TO FOLDER NOW</button>
+        <button class="btn-ghost" style="flex:1" onclick="exportDownload()">⬇ DOWNLOAD FILE</button>
+      </div>
+      <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px" id="exportStatus"></div>
+    </div>
+
+    <!-- Restore -->
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:2px">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Restore from Backup</div>
+      <p style="font-size:11px;color:var(--ink);line-height:1.6;margin-bottom:8px">Pick a <code style="background:var(--cream);padding:1px 4px;border-radius:2px">.json</code> backup to restore. This will <strong>replace</strong> all current data.</p>
+      <label class="btn-ghost" style="display:block;text-align:center;cursor:pointer;padding:8px">
+        ⬆ CHOOSE BACKUP FILE
+        <input type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
+      </label>
+      <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px" id="importStatus"></div>
+    </div>
+
+    <div style="background:var(--cream);border-radius:4px;padding:8px 10px;font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);line-height:1.7;margin-top:12px" id="fsaNotice">
+      💡 Folder selection uses the browser's File System Access API — supported in Chrome and Edge. The folder permission is remembered until you clear it. Auto-export runs once per week on app open.
+    </div>
+  </div>
+</div>
+</div>
+
+
+<!-- ══ NEW WEEKLY BIAS MODAL ══ -->
+<div class="modal-overlay" id="weeklyModal">
+<div class="modal" style="max-width:520px">
+  <div class="modal-head" style="background:#e8eaf6;border-bottom-color:#9fa8da">
+    <h3 id="weeklyModalTitle" style="color:#283593">NEW WEEKLY BIAS</h3>
+    <button class="modal-close" onclick="document.getElementById('weeklyModal').classList.remove('open')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="field-row">
+      <div class="field"><label>Pair / Instrument</label><input type="text" id="wbPair" placeholder="EURUSD, XAUUSD…"></div>
+      <div class="field"><label>Week Of</label><input type="date" id="wbDate"></div>
+    </div>
+    <div class="field"><label>Weekly Bias Direction</label>
+      <div class="seg-btns" id="wbBiasBtns">
+        <button class="seg-btn" onclick="wbSeg(this,'bias','BULLISH','sel-bull')">▲ BULLISH</button>
+        <button class="seg-btn" onclick="wbSeg(this,'bias','BEARISH','sel-bear')">▼ BEARISH</button>
+        <button class="seg-btn" onclick="wbSeg(this,'bias','NEUTRAL','sel-open')">— NEUTRAL</button>
+      </div>
+    </div>
+    <div class="field"><label>Key Levels / Notes</label>
+      <textarea id="wbNotes" placeholder="Weekly draw on liquidity, key HTF levels, what to watch…" style="min-height:80px"></textarea>
+    </div>
+    <div class="field"><label>Tags</label>
+      <div class="tag-input-wrap" id="wbTagWrap" onclick="document.getElementById('wbTagInput').focus()">
+        <span class="tag tag-weekly">#weekly</span>
+        <input class="tag-input" id="wbTagInput" placeholder="add tags, press Enter…" onkeydown="handleTagKey(event,'wb')">
+      </div>
+    </div>
+    <div class="field"><label>Chart Screenshot (Weekly / Daily)</label>
+      <div class="upload-zone" style="padding:10px" onclick="document.getElementById('wbFileIn').click()">
+        <div style="font-size:18px">📅</div><p>Upload weekly chart screenshot</p>
+        <input type="file" id="wbFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'wb')">
+      </div>
+      <div class="ss-grid" id="wbSsGrid"></div>
+    </div>
+  </div>
+  <div class="modal-footer" style="background:#e8eaf6">
+    <button class="btn-ghost" onclick="document.getElementById('weeklyModal').classList.remove('open')">CANCEL</button>
+    <button class="btn-primary" style="background:#283593;border-color:#283593" id="wbSaveBtn" onclick="saveWeeklyBias()">📅 SAVE WEEKLY BIAS</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ ADD NOTE TO WEEKLY BIAS MODAL ══ -->
+<div class="modal-overlay" id="wbNoteModal">
+<div class="modal" style="max-width:480px">
+  <div class="modal-head" style="background:#e8eaf6;border-bottom-color:#9fa8da">
+    <h3 id="wbNoteTitle" style="color:#283593">ADD NOTE</h3>
+    <button class="modal-close" onclick="document.getElementById('wbNoteModal').classList.remove('open')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="field"><label>Update Note</label>
+      <textarea id="wbNoteText" placeholder="How is the market developing? Key observations…" style="min-height:80px"></textarea>
+    </div>
+    <div class="field"><label>Screenshot (optional)</label>
+      <div class="upload-zone" style="padding:10px" onclick="document.getElementById('wbNoteFileIn').click()">
+        <div style="font-size:16px">📸</div><p>Add chart update screenshot</p>
+        <input type="file" id="wbNoteFileIn" accept="image/*" multiple onchange="handleFileSelect(event,'wbn')">
+      </div>
+      <div class="ss-grid" id="wbNSsGrid"></div>
+    </div>
+  </div>
+  <div class="modal-footer" style="background:#e8eaf6">
+    <button class="btn-ghost" onclick="document.getElementById('wbNoteModal').classList.remove('open')">CANCEL</button>
+    <button class="btn-primary" style="background:#283593;border-color:#283593" onclick="saveWbNote()">SAVE NOTE</button>
+  </div>
+</div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <img id="lbImg" src="" alt="">
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+// SCORING SCHEMA
+// ════════════════════════════════════════════════
+const BIAS_CARDS = [
+  { id:'bc0a', num:'01', title:'IRL → ERL or ERL → IRL', tf:'Weekly / Daily context', maxPts:2,
+    kills:[
+      {id:'k_monday', text:'Monday — no trade. Market must show its hand first.'},
+      {id:'k_maxone', text:'Max 1 trade per day — second attempt after a loss is blocked.'},
+    ],
+    questions:[
+      { id:'q_irl_erl', label:'Is price moving from IRL to ERL, or ERL to IRL?',
+        hint:'IRL = Internal Range Liquidity (FVGs, OBs inside a range). ERL = External Range Liquidity (old highs/lows, buyside/sellside pools). Knowing the draw direction defines whether you are hunting a continuation or a reversal setup.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'IRL → ERL — price leaving an internal zone, targeting external liquidity · 2pts', pts:2, val:'irl_to_erl'},
+          {label:'ERL → IRL — price swept external liquidity, now retracing to internal zone · 2pts', pts:2, val:'erl_to_irl'},
+          {label:'Unclear / price mid-range, no directional draw · 0pts', pts:0, val:'irl_erl_unclear'},
+        ]}
+    ]},
+  { id:'bc0b', num:'02', title:'Current IRL & ERL Levels', tf:'Weekly / Daily', maxPts:4,
+    kills:[],
+    questions:[
+      { id:'q_irl_type', label:'What IRL structure is price sitting in or approaching?',
+        hint:'Internal Range Liquidity — the zone where price is likely to be attracted before continuing. Identify the specific structure type.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Weekly FVG — unmitigated, clean displacement · 2pts', pts:2, val:'irl_wfvg'},
+          {label:'Daily FVG — unmitigated, from displacement candle · 2pts', pts:2, val:'irl_dfvg'},
+          {label:'Order Block (OB) — unmitigated · 2pts', pts:2, val:'irl_ob'},
+          {label:'FVG or OB — partially mitigated / weak · 1pt', pts:1, val:'irl_partial'},
+          {label:'No clear IRL identified · 0pts', pts:0, val:'irl_none'},
+        ]},
+      { id:'q_erl_type', label:'What is the current ERL / Draw on Liquidity?',
+        hint:'External Range Liquidity — the pool price is ultimately drawn toward. Defines your TP target and confirms bias direction.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Old untapped high or low (buyside / sellside pool) · 2pts', pts:2, val:'erl_old_hl'},
+          {label:'Rejection block — unmitigated resistance/support · 2pts', pts:2, val:'erl_rejblock'},
+          {label:'Weak high or low — formed without clear displacement · 1pt', pts:1, val:'erl_weak'},
+          {label:'No clear ERL / DoL identified · 0pts', pts:0, val:'erl_none'},
+        ]}
+    ]},
+  { id:'bc1', num:'03', title:'Weekly & Daily DOL', tf:'Daily chart', maxPts:4,
+    kills:[],
+    questions:[
+      { id:'q_dol', label:'Where is price drawing to on the Daily?',
+        hint:'Identify nearest untapped External Range Liquidity. Sets the trade direction for the week.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Clear old high above / ERL above price (Bullish DOL) · 2pts', pts:2, val:'bull_clear', dir:'bull'},
+          {label:'Clear old low below / ERL below price (Bearish DOL) · 2pts', pts:2, val:'bear_clear', dir:'bear'},
+          {label:'Within range, no clear DOL yet · 0pts', pts:0, val:'none', dir:'neutral'},
+        ]},
+      { id:'q_structure', label:'Daily candle structure',
+        hint:'HH + HL = bullish. LH + LL = bearish. Mixed = no bias.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'HH + HL — clean bullish structure · 2pts', pts:2, val:'bull_struct', dir:'bull'},
+          {label:'LH + LL — clean bearish structure · 2pts', pts:2, val:'bear_struct', dir:'bear'},
+          {label:'Mixed / ranging structure · 0pts', pts:0, val:'mixed', dir:'neutral'},
+        ]}
+    ]},
+  { id:'bc2', num:'04', title:'Daily POI Quality', tf:'Daily chart', maxPts:4,
+    kills:[],
+    questions:[
+      { id:'q_daily_poi', label:'Is there a clean Daily OB or FVG approaching?',
+        hint:'HTF zone is your anchor. Without a clear Daily POI, no setup exists.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Daily OB or FVG from a liquidity sweep / impulse move · 2pts', pts:2, val:'poi_lq'},
+          {label:'Daily OB or FVG present but from a weak move · 1pt', pts:1, val:'poi_weak'},
+          {label:'No clear Daily OB/FVG nearby · 0pts', pts:0, val:'poi_none'},
+        ]},
+      { id:'q_discount', label:'Is price approaching the Daily POI from the correct side?',
+        hint:'Longs: discount tapping demand. Shorts: premium tapping supply.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Yes — price at discount tapping demand (long) · 2pts', pts:2, val:'disc_yes'},
+          {label:'Yes — price at premium tapping supply (short) · 2pts', pts:2, val:'prem_yes'},
+          {label:'Price in middle of range, 50% area · 1pt', pts:1, val:'disc_mid'},
+          {label:'No — price is chasing, not at a POI · 0pts', pts:0, val:'disc_no'},
+        ]}
+    ]},
+  { id:'bc3', num:'05', title:'4H Alignment & Zone', tf:'4H chart', maxPts:3,
+    kills:[
+      {id:'k_4hconflict', text:'4H structure conflicts with Daily bias — both must agree before proceeding.'},
+    ],
+    questions:[
+      { id:'q_4h_struct', label:'Does 4H structure agree with Daily bias?',
+        hint:'Both must agree. 4H conflicting Daily = no trade today.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'4H fully agrees with Daily · 2pts', pts:2, val:'h4_agree'},
+          {label:'4H neutral but not opposing Daily · 1pt', pts:1, val:'h4_neutral'},
+          {label:'4H conflicts with Daily · 0pts ⛔', pts:0, val:'h4_conflict'},
+        ]},
+      { id:'q_4h_poi', label:'Is there a 4H OB or FVG for the entry to nest inside?',
+        hint:'1H entry must sit inside a 4H zone for an A-grade setup.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'4H OB/FVG nested inside Daily OB/FVG · 3pts', pts:3, val:'h4_nested'},
+          {label:'4H OB/FVG present but not inside Daily zone · 2pts', pts:2, val:'h4_standalone'},
+          {label:'No clear 4H zone — only Daily zone available · 1pt', pts:1, val:'h4_none'},
+          {label:'No 4H or Daily zone · 0pts', pts:0, val:'h4_nothing'},
+        ]}
+    ]},
+  { id:'bc4', num:'06', title:'1H Liquidity Sweep', tf:'1H chart', maxPts:2,
+    kills:[
+      {id:'k_sweepthrough', text:'Sweep candle closed THROUGH the level (not a rejection) — invalidated.'},
+      {id:'k_bothsides', text:'Both sides swept in the same session (liquidity above AND below taken) — no edge.'},
+    ],
+    questions:[
+      { id:'q_sweep', label:'Has a 1H liquidity sweep occurred at or near the Daily/4H POI?',
+        hint:'SBCA = bullish entry. SACB = bearish. No sweep = wait.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Clean SBCA or SACB at Daily+4H POI · 2pts', pts:2, val:'sweep_clean'},
+          {label:'Sweep at 4H zone only (not at Daily level) · 1pt', pts:1, val:'sweep_partial'},
+          {label:'No sweep yet — monitoring · 0pts', pts:0, val:'sweep_none'},
+        ]}
+    ]},
+  { id:'bc5', num:'07', title:'1H Entry Confluence', tf:'1H chart', maxPts:2,
+    kills:[
+      {id:'k_fvgfilled', text:'1H FVG already fully filled before entry triggers — setup is done.'},
+      {id:'k_rr', text:'RR to TP 2R is less than 2:1 from entry price — do not take.'},
+    ],
+    questions:[
+      { id:'q_1h_fvg', label:'Is there a 1H FVG formed from the sweep move, still unfilled?',
+        hint:'1H FVG is your limit order zone. If filled before entry triggers, setup is done.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Yes — clean unfilled 1H FVG nested inside 4H zone · 1pt', pts:1, val:'fvg_clean'},
+          {label:'1H FVG present but partially filled · 0.5pts', pts:0.5, val:'fvg_partial'},
+          {label:'No 1H FVG — would use OB only · 0pts', pts:0, val:'fvg_none'},
+        ]},
+      { id:'q_1h_bias', label:'Is 1H structure aligned with the HTF bias?',
+        hint:'1H structure should confirm the Daily/4H direction. A conflicting 1H trend means you are fighting the entry timeframe — subtract 1pt. Can be updated later if 1H develops.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Yes — 1H structure confirms HTF direction · 1pt', pts:1, val:'h1_agree'},
+          {label:'Neutral — 1H ranging, no clear conflict · 0pts', pts:0, val:'h1_neutral'},
+          {label:'No — 1H structure opposing HTF bias · -1pt', pts:-1, val:'h1_conflict'},
+        ]}
+    ]}
+];
+
+// ════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════
+// ══════════════════════════════════════
+// SUPABASE CLIENT
+// ══════════════════════════════════════
+const SUPA_URL = 'https://klgibccfziktzvlomwve.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsZ2liY2NmemlrdHp2bG9td3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDY2MTYsImV4cCI6MjA5NTgyMjYxNn0.BdmDWJWJGjytVSTTQYEAeLiYtJCFX4GaGeHpDEvbHEM';
+const _sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+let _currentUser = null;
+
+const S = {
+  answers: {},
+  kills: {},
+  killOpen: false,
+  ideaSS: [],
+  cmSS: [],
+  eoiSS: [],
+  ecSS: [],
+  cmData: { result:'', biasPlayed:'', tp2r:'', tp15r:'' },
+  ecData: { result:'', tp2r:'', tp15r:'' },
+  cmEditId: null,
+  eoiEditId: null,
+  ecEditId: null,
+  checklistEditId: null,
+  checklistMode: null,
+  currentPage: 'home',
+  trades: [],
+  weeklies: [],
+  driveAccounts: JSON.parse(localStorage.getItem('ict_drive_accs') || '[]'),
+  activeDrive: localStorage.getItem('ict_drive_active') || null,
+};
+
+// Data loaded from Supabase after login
+
+// ══════════════════════════════════════
+// AUTH FUNCTIONS
+// ══════════════════════════════════════
+function authTab(t){
+  document.getElementById('atLogin').classList.toggle('active',t==='login');
+  document.getElementById('atSignup').classList.toggle('active',t==='signup');
+  document.getElementById('afLogin').style.display=t==='login'?'':'none';
+  document.getElementById('afSignup').style.display=t==='signup'?'':'none';
+  document.getElementById('authMsg').className='auth-msg';
+}
+function showAuthMsg(m,t='err'){const el=document.getElementById('authMsg');el.textContent=m;el.className='auth-msg '+t;}
+async function doLogin(){
+  const e=document.getElementById('authEmail').value.trim(),p=document.getElementById('authPass').value;
+  if(!e||!p){showAuthMsg('Enter email and password.');return;}
+  document.getElementById('authLoading').style.display='block';
+  const {data,error}=await _sb.auth.signInWithPassword({email:e,password:p});
+  document.getElementById('authLoading').style.display='none';
+  if(error){showAuthMsg(error.message);return;}
+  onLoggedIn(data.user);
+}
+async function doSignup(){
+  const e=document.getElementById('authEmailS').value.trim(),p=document.getElementById('authPassS').value;
+  if(!e||!p){showAuthMsg('Enter email and password.');return;}
+  if(p.length<6){showAuthMsg('Password must be at least 6 characters.');return;}
+  document.getElementById('authLoading').style.display='block';
+  const {data,error}=await _sb.auth.signUp({email:e,password:p});
+  document.getElementById('authLoading').style.display='none';
+  if(error){showAuthMsg(error.message);return;}
+  showAuthMsg('✓ Account created! Check your email to confirm, then sign in.','ok');
+}
+async function doReset(){
+  const e=document.getElementById('authEmail').value.trim();
+  if(!e){showAuthMsg('Enter your email first.');return;}
+  const {error}=await _sb.auth.resetPasswordForEmail(e);
+  if(error){showAuthMsg(error.message);return;}
+  showAuthMsg('✓ Reset email sent — check your inbox.','ok');
+}
+async function doLogout(){
+  if(!confirm('Sign out?')) return;
+  await _sb.auth.signOut(); _currentUser=null;
+  S.trades=[]; S.weeklies=[];
+  document.getElementById('authScreen').style.display='flex';
+}
+function onLoggedIn(user){
+  _currentUser=user;
+  document.getElementById('authScreen').style.display='none';
+  const emailEl=document.getElementById('sbUserEmail');
+  if(emailEl) emailEl.textContent=user.email;
+  document.querySelector('.topbar-brand p').textContent=user.email;
+  loadAllData();
+}
+// Check existing session on page load
+_sb.auth.getSession().then(({data:{session}})=>{ if(session?.user) onLoggedIn(session.user); });
+_sb.auth.onAuthStateChange((event,session)=>{
+  if(event==='SIGNED_IN'&&session?.user) onLoggedIn(session.user);
+  if(event==='SIGNED_OUT'){_currentUser=null;document.getElementById('authScreen').style.display='flex';}
+});
+
+// ══════════════════════════════════════
+// SUPABASE DATA LAYER
+// ══════════════════════════════════════
+function setSyncStatus(s){
+  const el=document.getElementById('syncIndicator'); if(!el) return;
+  el.className='sync-indicator'+(s==='syncing'?' syncing':s==='synced'?' synced':s==='error'?' error':'');
+  el.innerHTML=s==='syncing'?'<span class="spin">⟳</span> SYNCING':s==='synced'?'✓ SYNCED':s==='error'?'✕ ERROR':'☁ SYNC';
+}
+
+function tradeToDb(t){
+  return {
+    id:t.id, user_id:_currentUser.id, status:t.status,
+    is_intraday:t.isIntraday||false, weekly_link_id:t.weeklyLinkId||null,
+    date:t.date, pair:t.pair, session:t.session, trade_type:t.tradeType||'BUY',
+    score:t.score, grade:t.grade, bias_set:t.biasSet, bias_played:t.biasPlayed,
+    bias_match:t.biasMatch, result:t.result, tp2r:t.tp2r, tp15r:t.tp15r,
+    idea_notes:t.ideaNotes||'', update_notes:t.updateNotes||'',
+    close_notes:t.closeNotes||'', followup_notes:t.followupNotes||'',
+    entry_price:t.entryPrice||null, close_price:t.closePrice||null,
+    sl_price:t.slPrice||null, tp_price:t.tpPrice||null,
+    open_time:t.openTime, close_time:t.closeTime||null,
+    tags:t.tags||[], screenshots:t.screenshots||[],
+    eod_screenshots:t.eodScreenshots||[], followup_screenshots:t.followupScreenshots||[],
+    checklist_answers:t.checklistAnswers||{}, checklist_kills:t.checklistKills||{},
+  };
+}
+function dbToTrade(r){
+  return {
+    id:r.id, status:r.status, isIntraday:r.is_intraday, weeklyLinkId:r.weekly_link_id,
+    date:r.date, pair:r.pair, session:r.session, tradeType:r.trade_type,
+    score:r.score, grade:r.grade, biasSet:r.bias_set, biasPlayed:r.bias_played,
+    biasMatch:r.bias_match, result:r.result, tp2r:r.tp2r||'N/A', tp15r:r.tp15r||'N/A',
+    ideaNotes:r.idea_notes||'', updateNotes:r.update_notes||'',
+    closeNotes:r.close_notes||'', followupNotes:r.followup_notes||'',
+    entryPrice:r.entry_price, closePrice:r.close_price, slPrice:r.sl_price, tpPrice:r.tp_price,
+    openTime:r.open_time, closeTime:r.close_time,
+    tags:r.tags||[], screenshots:r.screenshots||[],
+    eodScreenshots:r.eod_screenshots||[], followupScreenshots:r.followup_screenshots||[],
+    checklistAnswers:r.checklist_answers||{}, checklistKills:r.checklist_kills||{},
+  };
+}
+function weeklyToDb(w){
+  return {
+    id:w.id, user_id:_currentUser.id, status:w.status,
+    pair:w.pair, date:w.date, bias:w.bias, notes:w.notes||'',
+    tags:w.tags||[], screenshots:w.screenshots||[], updates:w.updates||[],
+    created_at:w.createdAt, closed_at:w.closedAt||null,
+  };
+}
+function dbToWeekly(r){
+  return {
+    id:r.id, status:r.status, pair:r.pair, date:r.date, bias:r.bias,
+    notes:r.notes||'', tags:r.tags||[], screenshots:r.screenshots||[],
+    updates:r.updates||[], createdAt:r.created_at, closedAt:r.closed_at,
+  };
+}
+
+async function loadAllData(){
+  if(!_currentUser) return;
+  setSyncStatus('syncing');
+  try{
+    const [tr, wr] = await Promise.all([
+      _sb.from('trades').select('*').eq('user_id',_currentUser.id).order('created_at',{ascending:false}),
+      _sb.from('weeklies').select('*').eq('user_id',_currentUser.id).order('created_at',{ascending:false})
+    ]);
+    if(tr.error) throw tr.error;
+    if(wr.error) throw wr.error;
+    S.trades = (tr.data||[]).map(dbToTrade);
+    S.weeklies = (wr.data||[]).map(dbToWeekly);
+    setSyncStatus('synced');
+    updateSyncBar();
+    renderDashboard(); renderOpen(); updateOpenBadge();
+    if(typeof updateWeeklyBadge==='function') updateWeeklyBadge();
+    if(typeof updateIntradayBadge==='function') updateIntradayBadge();
+    if(typeof refreshIntraWeeklyDropdown==='function') refreshIntraWeeklyDropdown();
+    showToast('✓ Data synced');
+  }catch(e){
+    setSyncStatus('error'); showToast('Sync error: '+e.message,'err');
+  }
+}
+
+async function saveTrade(t){
+  if(!_currentUser) return false;
+  setSyncStatus('syncing');
+  const {error}=await _sb.from('trades').upsert(tradeToDb(t),{onConflict:'id'});
+  if(error){setSyncStatus('error');showToast('Save error: '+error.message,'err');return false;}
+  setSyncStatus('synced'); return true;
+}
+async function deleteTradeSupa(id){
+  if(!_currentUser) return;
+  await _sb.from('trades').delete().eq('id',id).eq('user_id',_currentUser.id);
+}
+async function saveWeekly(w){
+  if(!_currentUser) return false;
+  setSyncStatus('syncing');
+  const {error}=await _sb.from('weeklies').upsert(weeklyToDb(w),{onConflict:'id'});
+  if(error){setSyncStatus('error');showToast('Save error: '+error.message,'err');return false;}
+  setSyncStatus('synced'); return true;
+}
+async function deleteWeeklySupa(id){
+  if(!_currentUser) return;
+  await _sb.from('weeklies').delete().eq('id',id).eq('user_id',_currentUser.id);
+}
+
+// Keep saveTrades as a legacy local alias (no-op now — data is saved per-record)
+function saveTrades(){ /* data saved via saveTrade() per record */ }
+async function manualSync(){ await loadAllData(); }
+
+function updateSyncBar(){
+  const dot=document.getElementById('driveDot'),txt=document.getElementById('driveBarText');
+  const now=new Date();
+  if(dot) dot.className='drive-dot on';
+  if(txt) txt.textContent='Synced to Supabase · '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' · '+now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+}
+
+function showToast(msg,type='ok'){
+  const el=document.getElementById('toastMsg'); if(!el) return;
+  el.textContent=msg; el.className='toast-msg show'+(type==='err'?' err':type==='warn'?' warn':'');
+  clearTimeout(el._t); el._t=setTimeout(()=>{el.classList.remove('show');},3200);
+}
+
+function saveDrive(){ localStorage.setItem('ict_drive_accs', JSON.stringify(S.driveAccounts)); localStorage.setItem('ict_drive_active', S.activeDrive||''); }
+
+// ════════════════════════════════════════════════
+// SCORING
+// ════════════════════════════════════════════════
+function calcScore(){
+  let t = 0;
+  BIAS_CARDS.flatMap(c=>c.questions).forEach(q=>{
+    const a=S.answers[q.id]; if(a&&a.pts!==null) t+=a.pts;
+  });
+  return Math.min(t,10);
+}
+function getGrade(s){
+  if(s===null||s===undefined||isNaN(s)) return null;
+  if(s>=9) return 'A+'; if(s>=8) return 'A'; if(s>=7) return 'B'; if(s>=5) return 'C'; return 'No Trade';
+}
+function gradeClass(g){
+  if(g==='A+') return 'aplus'; if(g==='A') return 'a'; if(g==='B') return 'b'; if(g==='C') return 'c'; return 'none';
+}
+function getBias(){
+  const d=S.answers['q_dol'], st=S.answers['q_structure'];
+  if(!d||!st) return null;
+  const dd=d.val.startsWith('bull')?'bull':d.val.startsWith('bear')?'bear':'neutral';
+  const sd=st.val.startsWith('bull')?'bull':st.val.startsWith('bear')?'bear':'neutral';
+  if(dd==='bull'&&sd==='bull') return 'BULLISH';
+  if(dd==='bear'&&sd==='bear') return 'BEARISH';
+  return 'NEUTRAL';
+}
+function countAnswered(){ return BIAS_CARDS.flatMap(c=>c.questions).filter(q=>S.answers[q.id]&&S.answers[q.id].val!=='').length; }
+function totalQs(){ return BIAS_CARDS.flatMap(c=>c.questions).length; }
+
+// R calculation
+function calcR(trade){
+  const {entryPrice:e, closePrice:c, slPrice:sl} = trade;
+  if(!e||!c||!sl) return null;
+  const risk = Math.abs(e - sl);
+  if(risk === 0) return null;
+  return (c - e) / risk;
+}
+
+// ════════════════════════════════════════════════
+// SIDEBAR / NAV
+// ════════════════════════════════════════════════
+function toggleSidebar(){
+  const s=document.getElementById('sidebar'), o=document.getElementById('sidebarOverlay');
+  const open=s.classList.toggle('open');
+  o.classList.toggle('open', open);
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+function navTo(page){
+  closeSidebar();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('navitem-'+page).classList.add('active');
+  document.getElementById('content').scrollTop = 0;
+  S.currentPage = page;
+  if(page==='home') renderDashboard();
+  if(page==='idea'){
+    renderBiasCards(); renderEntrySection(); updateScoreStrip();
+    const editMode=S.checklistMode==='edit';
+    const t=editMode&&S.checklistEditId?S.trades.find(t=>t.id===S.checklistEditId):null;
+    const secHead=document.querySelector('#page-idea .sec-head h2');
+    if(secHead) secHead.textContent=editMode?'UPDATE CHECKLIST':'NEW TRADE IDEA';
+    const primaryBtn=document.getElementById('logPrimaryBtn');
+    if(primaryBtn){
+      if(editMode){
+        primaryBtn.textContent='💾 SAVE CHECKLIST UPDATE';
+        primaryBtn.onclick=saveChecklistUpdate;
+      } else {
+        primaryBtn.textContent='💡 LOG AS OPEN TRADE';
+        primaryBtn.onclick=saveIdeaAsOpen;
+      }
+    }
+    // In edit mode lock pair/date/session fields
+    const pairFld=document.getElementById('ideaPair');
+    const dateFld=document.getElementById('ideaDate');
+    const sessFld=document.getElementById('ideaSession');
+    if(editMode&&t){
+      if(pairFld){pairFld.value=t.pair;pairFld.disabled=true;pairFld.style.background='var(--cream)';}
+      if(dateFld){dateFld.value=t.date;dateFld.disabled=true;dateFld.style.background='var(--cream)';}
+      if(sessFld){sessFld.value=t.session||'London';sessFld.disabled=true;sessFld.style.background='var(--cream)';}
+      setTradeType(t.tradeType||'BUY');
+    } else {
+      if(pairFld){pairFld.disabled=false;pairFld.style.background='';}
+      if(dateFld){dateFld.disabled=false;dateFld.style.background='';}
+      if(sessFld){sessFld.disabled=false;sessFld.style.background='';}
+    }
+  }
+  if(page==='open') renderOpen();
+  if(page==='closed') renderClosed();
+}
+
+// ════════════════════════════════════════════════
+// SCORE STRIP
+// ════════════════════════════════════════════════
+function updateScoreStrip(){
+  const score=calcScore(), ans=countAnswered(), tot=totalQs(), hasAll=ans===tot;
+  const grade=hasAll?getGrade(score):null;
+  document.getElementById('scoreNum').textContent = hasAll?score.toFixed(1):'—';
+  const ge=document.getElementById('scoreGrade');
+  ge.textContent = grade||'NO SCORE'; ge.className='score-grade grade-'+(grade?gradeClass(grade):'none');
+  const pct = hasAll?(score/10*100):0;
+  const fill=document.getElementById('scoreBarFill');
+  fill.style.width=pct+'%';
+  fill.style.background = !hasAll?'#3a3530':score>=9?'#00c853':score>=8?'var(--bull)':score>=7?'var(--gold)':score>=5?'#c06000':'var(--bear)';
+  const vmap={'A+':'✦ A+ — Execute.','A':'✓ A — Trade it.','B':'△ B — Standard size.','C':'○ C — Consider skip.','No Trade':'✕ NO TRADE'};
+  document.getElementById('scoreVerdict').textContent = grade?vmap[grade]:'Answer all dropdowns';
+  document.getElementById('progFill').style.width=(ans/tot*100)+'%';
+  document.getElementById('progLabel').textContent=ans+'/'+tot;
+  // update direction auto field
+  const bias=getBias(), el=document.getElementById('ideaDirAuto');
+  if(el){ el.textContent=bias||'—'; el.className='auto-field'+(bias==='BULLISH'?' bull-f':bias==='BEARISH'?' bear-f':''); }
+}
+
+// ════════════════════════════════════════════════
+// BIAS CARDS
+// ════════════════════════════════════════════════
+function onDropChange(qid, sel){
+  const opt=sel.options[sel.selectedIndex], pts=parseFloat(opt.dataset.pts), val=opt.value;
+  if(val===''){delete S.answers[qid];}else{S.answers[qid]={pts:isNaN(pts)?0:pts,val,label:opt.text};}
+  sel.className='drop-select';
+  if(val!==''){if(pts>=2)sel.classList.add('sel-good');else if(pts>=1)sel.classList.add('sel-ok');else sel.classList.add('sel-bad');}
+  updateScoreStrip(); renderBiasCards(); renderEntrySection();
+}
+
+function renderBiasCards(){
+  const c=document.getElementById('biasCards'); if(!c) return;
+  c.innerHTML='';
+  const editMode=S.checklistMode==='edit';
+
+  BIAS_CARDS.forEach(card=>{
+    const cpts=card.questions.reduce((s,q)=>{const a=S.answers[q.id];return s+(a&&a.pts!==null?a.pts:0);},0);
+    const allAns=card.questions.every(q=>S.answers[q.id]&&S.answers[q.id].val!=='');
+    const st=!allAns?'':(cpts>=card.maxPts*0.7?'scored':cpts>=card.maxPts*0.4?'scored-neutral':'scored-bad');
+    const cardKillOn=(card.kills||[]).some(k=>S.kills[k.id]);
+
+    const div=document.createElement('div');
+    div.className='score-card '+(cardKillOn?'scored-bad':st);
+
+    // Kill switches inline at top of card
+    const killsHtml=(card.kills||[]).length>0?`
+      <div style="padding:8px 12px;border-bottom:1px solid var(--cream)">
+        ${(card.kills||[]).map(k=>`
+          <div class="kill-item ${S.kills[k.id]?'on':''}" onclick="toggleKillItem('${k.id}');renderBiasCards();" style="padding:6px 4px;border-bottom:none">
+            <div class="kbox">${S.kills[k.id]?'✕':''}</div>
+            <div class="kill-text" style="font-size:11px">⛔ ${k.text}</div>
+          </div>`).join('')}
+      </div>`:'';
+
+    div.innerHTML=`<div class="card-head">
+      <div class="card-num">${card.num}</div>
+      <div class="card-title-wrap"><div class="card-title">${card.title}</div><div class="card-tf">${card.tf}</div></div>
+      <div class="card-pts-badge">${allAns?cpts.toFixed(1)+'/'+card.maxPts:'—/'+card.maxPts} pts</div>
+    </div>
+    ${killsHtml}
+    ${card.questions.map(q=>{
+      const ans=S.answers[q.id], sv=ans?ans.val:'';
+      const isUpdatable=UPDATABLE_QS.has(q.id);
+      const isLocked=editMode&&!isUpdatable;
+      const lockBadge=editMode?`<span style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:6px;${isLocked?'background:var(--cream);color:var(--muted)':'background:#e8f5e9;color:var(--bull)'}">${isLocked?'🔒 LOCKED':'✏ UPDATABLE'}</span>`:'';
+      return`<div class="drop-row" style="${isLocked?'opacity:0.6':''}">
+        <div class="drop-label">${q.label}${lockBadge}</div>
+        <div class="drop-hint">↳ ${q.hint}</div>
+        <select class="drop-select ${sv&&ans.pts>=2?'sel-good':sv&&ans.pts>=1?'sel-ok':sv&&ans.pts<0?'sel-bad':sv?'sel-bad':''}"
+          onchange="onDropChange('${q.id}',this)"
+          ${isLocked?'disabled style="pointer-events:none;background:var(--cream)"':''}>
+          ${q.options.map(o=>`<option value="${o.val}" data-pts="${o.pts}" ${sv===o.val?'selected':''}>${o.label}</option>`).join('')}
+        </select>
+        ${sv?`<div class="drop-pts ${ans.pts>=2?'pts-good':ans.pts>=1?'pts-ok':'pts-bad'}">${ans.pts} pts</div>`:''}
+      </div>`;
+    }).join('')}`;
+    c.appendChild(div);
+  });
+
+  // Summary
+  const score=calcScore(), ans=countAnswered(), tot=totalQs(), hasAll=ans===tot;
+  const grade=hasAll?getGrade(score):null, bias=getBias();
+  const sd=document.createElement('div');
+  sd.className='score-card '+(hasAll&&grade&&grade!=='No Trade'?'scored':hasAll?'scored-bad':'');
+  sd.innerHTML=`<div class="card-head">
+    <div class="card-num" style="background:${hasAll&&grade&&grade!=='No Trade'?'var(--bull)':'var(--muted)'}">∑</div>
+    <div class="card-title-wrap"><div class="card-title">Setup Score Summary</div><div class="card-tf">All timeframes</div></div>
+    <div class="card-pts-badge">${hasAll?score.toFixed(1)+'/10 — '+(grade||''):'Answer all questions'}</div>
+  </div>
+  <table class="score-table">
+    ${BIAS_CARDS.map(card=>{const pts=card.questions.reduce((s,q)=>{const a=S.answers[q.id];return s+(a&&a.pts?a.pts:0);},0);return`<tr><td class="st-label">${card.title}</td><td class="st-val">${pts.toFixed(1)}/${card.maxPts}</td></tr>`;}).join('')}
+    <tr style="border-top:1.5px solid var(--border)"><td class="st-label" style="font-weight:700;color:var(--ink)">TOTAL</td><td class="st-val" style="font-size:14px">${hasAll?score.toFixed(1)+'/10':'—'}</td></tr>
+    <tr><td class="st-label">Grade</td><td class="st-val">${grade?`<span class="pill pill-${gradeClass(grade)}">${grade}</span>`:'—'}</td></tr>
+    <tr><td class="st-label">Bias</td><td class="st-val">${bias?`<span class="pill pill-${bias==='BULLISH'?'bull':bias==='BEARISH'?'bear':'neutral'}">${bias}</span>`:'—'}</td></tr>
+  </table>`;
+  c.appendChild(sd);
+}
+
+// ════════════════════════════════════════════════
+// ENTRY SECTION
+// ════════════════════════════════════════════════
+function renderEntrySection(){
+  const c=document.getElementById('entrySection'); if(!c) return;
+  const killOn=Object.values(S.kills).some(v=>v);
+  const score=calcScore(), ans=countAnswered()===totalQs(), grade=ans?getGrade(score):null, bias=getBias();
+  const editMode=S.checklistMode==='edit';
+  c.innerHTML='';
+
+  // Verdict
+  let icon,title,msg,bc;
+  if(killOn){icon='⛔';title='NO TRADE — KILL CONDITION ACTIVE';msg='A kill condition is triggered above. Log a skip instead.';bc='var(--bear)';}
+  else if(!bias){icon='📋';title='Complete Bias Checklist';msg='Answer all dropdowns above to score your setup.';bc='var(--border)';}
+  else if(grade==='No Trade'){icon='✕';title='NO TRADE — SCORE TOO LOW';msg='Score below 5. Do not force.';bc='var(--bear)';}
+  else if(grade==='C'){icon='○';title='C SETUP — MARGINAL';msg='5–6pts. 50% size or skip.';bc='#d4a070';}
+  else if(grade==='B'){icon='△';title='B SETUP — STANDARD SIZE';msg='7pts. All key criteria met.';bc='var(--gold)';}
+  else if(grade==='A'){icon='✓';title='A SETUP — EXECUTE';msg='8pts. Strong setup. Set limit and walk away.';bc='var(--bull)';}
+  else if(grade==='A+'){icon='✦';title='A+ SETUP — HIGHEST CONVICTION';msg='9–10pts. Nested zones, sweep, FVG clean. Full size.';bc='#00c853';}
+  else{icon='📋';title='INCOMPLETE';msg='Answer all dropdowns.';bc='var(--border)';}
+  const vd=document.createElement('div');
+  vd.className='verdict'; vd.style.borderColor=bc;
+  vd.innerHTML=`<div class="v-icon">${icon}</div><div class="v-body"><div class="v-title" style="color:${bc}">${title}</div><div class="v-msg">${msg}</div></div>`;
+  c.appendChild(vd);
+}
+
+function toggleKillItem(key){ S.kills[key]=!S.kills[key]; renderEntrySection(); }
+
+// ════════════════════════════════════════════════
+// FULL RESET
+// ════════════════════════════════════════════════
+function fullResetChecklist(){
+  if(!confirm('Clear ALL — dropdowns, screenshots, pair name, notes? Trade data is preserved.')) return;
+  S.answers={}; S.kills={}; S.killOpen=false; S.ideaSS=[];
+  S.checklistMode=null; S.checklistEditId=null;
+  const pairFld=document.getElementById('ideaPair');
+  const dateFld=document.getElementById('ideaDate');
+  const sessFld=document.getElementById('ideaSession');
+  if(pairFld){pairFld.value='';pairFld.disabled=false;pairFld.style.background='';}
+  if(dateFld){dateFld.value=new Date().toISOString().split('T')[0];dateFld.disabled=false;dateFld.style.background='';}
+  if(sessFld){sessFld.selectedIndex=0;sessFld.disabled=false;sessFld.style.background='';}
+  document.getElementById('ideaNotes').value='';
+  document.getElementById('ideaSsGrid').innerHTML='';
+  const vd=document.getElementById('ideaVerdict'); if(vd) vd.style.display='none';
+  setTradeType('BUY');
+  updateScoreStrip(); renderBiasCards(); renderEntrySection();
+  // Reset button labels
+  const primaryBtn=document.getElementById('logPrimaryBtn');
+  if(primaryBtn){primaryBtn.textContent='💡 LOG AS OPEN TRADE';primaryBtn.onclick=saveIdeaAsOpen;}
+  const secHead=document.querySelector('#page-idea .sec-head h2');
+  if(secHead) secHead.textContent='NEW TRADE IDEA';
+}
+
+// ════════════════════════════════════════════════
+// SCREENSHOTS
+// ════════════════════════════════════════════════
+function handleFileSelect(e, ctx){
+  Array.from(e.target.files).forEach(f=>readImg(f,ctx));
+  e.target.value='';
+}
+function readImg(file, ctx){
+  const r=new FileReader();
+  r.onload=ev=>{
+    const ss={id:Date.now()+'_'+Math.random().toString(36).slice(2), name:file.name, dataUrl:ev.target.result, label:ctx==='idea'?'Setup Chart':ctx==='cm'?'EOD Chart':ctx==='eoi'?'Update Chart':'Follow-up Chart', at:new Date().toLocaleString()};
+    if(ctx==='idea'){S.ideaSS.push(ss);renderSsGrid('ideaSsGrid',S.ideaSS,'idea');}
+    if(ctx==='cm'){S.cmSS.push(ss);renderSsGrid('cmSsGrid',S.cmSS,'cm');}
+    if(ctx==='eoi'){S.eoiSS.push(ss);renderSsGrid('eoiSsGrid',S.eoiSS,'eoi');}
+    if(ctx==='ec'){S.ecSS.push(ss);renderSsGrid('ecSsGrid',S.ecSS,'ec');}
+  };
+  r.readAsDataURL(file);
+}
+function renderSsGrid(gridId, arr, ctx){
+  const g=document.getElementById(gridId); if(!g) return;
+  const tfCtx=['wb','wbn','intra'];
+  const tfOptions=['Weekly','Daily','4H','1H','Custom'];
+  g.innerHTML=arr.map((ss,i)=>{
+    const labelEl = tfCtx.includes(ctx)
+      ? `<select class="ss-tf-sel" onclick="event.stopPropagation()" onchange="setSsLabel(${i},'${ctx}',this.value)">${tfOptions.map(tf=>`<option value="${tf} Chart"${ss.label===tf+' Chart'?' selected':''}>${tf}</option>`).join('')}</select>`
+      : `<div class="ss-lbl">${ss.label||''}</div>`;
+    return `<div class="ss-item">
+      <div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt="">${labelEl}</div>
+      <div class="ss-del-bar"><button class="ss-del-btn" onclick="removeSS(${i},'${ctx}')">✕ DELETE</button></div>
+    </div>`;
+  }).join('');
+}
+function setSsLabel(i,ctx,label){
+  const map={idea:'ideaSS',cm:'cmSS',eoi:'eoiSS',ec:'ecSS',wb:'wbSS',wbn:'wbnSS',intra:'intraSS'};
+  const arr=map[ctx]; if(!arr||!S[arr]||!S[arr][i]) return;
+  S[arr][i].label=label;
+}
+function removeSS(i,ctx){
+  const map={
+    idea:['ideaSS','ideaSsGrid'],
+    cm:['cmSS','cmSsGrid'],
+    eoi:['eoiSS','eoiSsGrid'],
+    ec:['ecSS','ecSsGrid'],
+    wb:['wbSS','wbSsGrid'],
+    wbn:['wbnSS','wbNSsGrid'],
+    intra:['intraSS','intraSsGrid'],
+  };
+  const [arr,grid]=map[ctx]||[]; if(!arr) return;
+  S[arr].splice(i,1); renderSsGrid(grid,S[arr],ctx);
+}
+function openLb(src){ document.getElementById('lbImg').src=src; document.getElementById('lightbox').classList.add('open'); }
+function closeLightbox(){ document.getElementById('lightbox').classList.remove('open'); }
+
+// ════════════════════════════════════════════════
+// SAVE IDEA AS OPEN TRADE
+// ════════════════════════════════════════════════
+function saveIdeaAsOpen(){
+  const pair=document.getElementById('ideaPair').value.trim();
+  const date=document.getElementById('ideaDate').value;
+  if(!pair||!date){alert('Pair and date are required.');return;}
+  const score=calcScore(), ans=countAnswered()===totalQs(), grade=ans?getGrade(score):'N/A', bias=getBias()||'NEUTRAL';
+  const trade={
+    id:Date.now(), status:'open', date, pair,
+    session:document.getElementById('ideaSession').value,
+    tradeType:S.tradeType||'BUY',
+    score:ans?score:null, grade:ans?grade:'N/A',
+    biasSet:bias, biasPlayed:'', biasMatch:'', result:'',
+    tp2r:'N/A', tp15r:'N/A',
+    ideaNotes:document.getElementById('ideaNotes').value.trim(),
+    updateNotes:'', closeNotes:'', followupNotes:'',
+    entryPrice:null, closePrice:null, slPrice:null,
+    openTime:new Date().toISOString(), closeTime:null,
+    screenshots:[...S.ideaSS], eodScreenshots:[], followupScreenshots:[],
+    checklistAnswers:{...S.answers},
+    checklistKills:{...S.kills},
+  };
+  S.trades.unshift(trade); saveTrades();
+  // Full reset after logging
+  S.answers={}; S.kills={}; S.killOpen=false; S.ideaSS=[];
+  document.getElementById('ideaPair').value='';
+  document.getElementById('ideaDate').value=new Date().toISOString().split('T')[0];
+  document.getElementById('ideaSession').selectedIndex=0;
+  document.getElementById('ideaNotes').value='';
+  document.getElementById('ideaSsGrid').innerHTML='';
+  const vd=document.getElementById('ideaVerdict'); if(vd) vd.style.display='none';
+  updateScoreStrip(); renderBiasCards(); renderEntrySection();
+  updateOpenBadge();
+  alert('✓ Trade idea logged for '+pair+' on '+date+'.\nGrade: '+grade+(ans?' · Score: '+score.toFixed(1):'')+'\n\nFind it in Open Trades.');
+  navTo('open');
+}
+
+// ════════════════════════════════════════════════
+// OPEN TRADES
+// ════════════════════════════════════════════════
+function updateOpenBadge(){
+  const n=S.trades.filter(t=>t.status==='open').length;
+  const b=document.getElementById('openBadge');
+  b.textContent=n; b.style.display=n>0?'':'none';
+  // update tile
+  const tl=document.getElementById('openTileLabel'), ts=document.getElementById('openTileSub');
+  if(tl) tl.textContent=n>0?'OPEN TRADES ('+n+')':'OPEN TRADES';
+  if(ts) ts.textContent=n>0?n+' idea'+(n>1?'s':'')+' pending':'View pending ideas';
+}
+
+function renderOpen(){
+  const open=S.trades.filter(t=>t.status==='open');
+  const c=document.getElementById('openContainer'); if(!c) return;
+  updateOpenBadge();
+  if(open.length===0){c.innerHTML='<div class="empty-state">No open trade ideas yet.<br>Go to New Trade Idea to log one.</div>';return;}
+  c.innerHTML=open.map(t=>{
+    const gc=gradeClass(t.grade);
+    const allSS=[...(t.screenshots||[]),...(t.eodScreenshots||[])];
+    const ssHtml=allSS.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('');
+    return`<div class="otc">
+      <div class="otc-head">
+        <div>
+          <div class="otc-pair">${t.pair}</div>
+          <div class="otc-meta">${t.date} · ${t.session||''}
+            · <span class="time-badge">${new Date(t.openTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+          </div>
+        </div>
+        ${t.score!==null?`<div class="otc-score"><span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span></div>`:''}
+      </div>
+      <div class="otc-body">
+        ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${t.ideaNotes}</div>`:''}
+        ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${t.updateNotes}</div>`:''}
+        <div class="otc-prices">
+          <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
+          <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
+          <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen(${t.id},'closePrice',this.value)"></div>
+        </div>
+        ${allSS.length>0?`<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`:''}
+        <div class="otc-actions">
+          <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
+          <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT / UPDATE</button>
+          <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 UPDATE CHECKLIST</button>
+          <button class="btn-ghost" onclick="addSsToOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">+ SCREENSHOT</button>
+          <button class="del-btn" onclick="deleteOpenTrade(${t.id})">DELETE</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function patchOpen(id, field, val){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  t[field]=val===''?null:parseFloat(val); saveTrade(t);
+}
+
+function addSsToOpenTrade(id){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.multiple=true;
+  inp.onchange=e=>{
+    Array.from(e.target.files).forEach(f=>{
+      const r=new FileReader(); r.onload=ev=>{
+        const t=S.trades.find(t=>t.id===id); if(!t) return;
+        t.screenshots=t.screenshots||[];
+        t.screenshots.push({id:Date.now()+'_'+Math.random().toString(36).slice(2), name:f.name, dataUrl:ev.target.result, label:'Trade Chart', at:new Date().toLocaleString()});
+        saveTrade(t); renderOpen();
+      }; r.readAsDataURL(f);
+    });
+  };
+  inp.click();
+}
+
+function deleteOpenTrade(id){
+  if(!confirm('Delete this trade idea? Cannot be undone.')) return;
+  S.trades=S.trades.filter(t=>t.id!==id); saveTrades(); renderOpen(); renderDashboard();
+}
+
+// Questions that can be updated after logging (LTF questions)
+const UPDATABLE_QS = new Set(['q_sweep','q_1h_fvg','q_1h_bias']);
+
+function openChecklistEdit(id){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  S.checklistEditId=id;
+  // Load the trade's saved answers into S.answers and S.kills
+  S.answers={...(t.checklistAnswers||{})};
+  S.kills={...(t.checklistKills||{})};
+  S.tradeType=t.tradeType||'BUY';
+  // Navigate to idea page in edit-checklist mode
+  S.checklistMode='edit';
+  navTo('idea');
+}
+
+function saveChecklistUpdate(){
+  const t=S.trades.find(t=>t.id===S.checklistEditId); if(!t) return;
+  // Only save updatable questions back
+  UPDATABLE_QS.forEach(qid=>{ t.checklistAnswers[qid]=S.answers[qid]; });
+  // Save all kills (kills can always be updated)
+  t.checklistKills={...S.kills};
+  // Recompute score and grade
+  const allQ=BIAS_CARDS.flatMap(c=>c.questions);
+  const allAns=allQ.every(q=>t.checklistAnswers[q.id]&&t.checklistAnswers[q.id].val!=='');
+  let total=0;
+  allQ.forEach(q=>{ const a=t.checklistAnswers[q.id]; if(a&&a.pts!==null) total+=a.pts; });
+  total=Math.min(total,10);
+  if(allAns){ t.score=total; t.grade=getGrade(total); }
+  saveTrade(t);
+  S.checklistMode=null; S.checklistEditId=null;
+  alert('✓ Checklist updated for '+t.pair+'.\nNew grade: '+t.grade+(t.score!==null?' · Score: '+t.score.toFixed(1):''));
+  navTo('open');
+}
+
+// ════════════════════════════════════════════════
+// EDIT OPEN TRADE MODAL
+// ════════════════════════════════════════════════
+function openEditOpenModal(id){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  S.eoiEditId=id; S.eoiSS=[];
+  document.getElementById('editOpenTitle').textContent='EDIT — '+t.pair;
+  document.getElementById('eoiPair').value=t.pair;
+  document.getElementById('eoiDate').value=t.date;
+  document.getElementById('eoiEntry').value=t.entryPrice||'';
+  document.getElementById('eoiSL').value=t.slPrice||'';
+  document.getElementById('eoiCurrent').value=t.closePrice||'';
+  document.getElementById('eoiNotes').value=t.updateNotes||'';
+  document.getElementById('eoiSsGrid').innerHTML='';
+  document.getElementById('editOpenModal').classList.add('open');
+}
+function saveEditOpen(){
+  const t=S.trades.find(t=>t.id===S.eoiEditId); if(!t) return;
+  t.pair=document.getElementById('eoiPair').value.trim()||t.pair;
+  t.date=document.getElementById('eoiDate').value||t.date;
+  t.entryPrice=parseFloat(document.getElementById('eoiEntry').value)||t.entryPrice;
+  t.slPrice=parseFloat(document.getElementById('eoiSL').value)||t.slPrice;
+  t.closePrice=parseFloat(document.getElementById('eoiCurrent').value)||t.closePrice;
+  t.updateNotes=document.getElementById('eoiNotes').value.trim();
+  if(S.eoiSS.length>0) t.screenshots=[...(t.screenshots||[]),...S.eoiSS];
+  saveTrades();
+  document.getElementById('editOpenModal').classList.remove('open');
+  S.eoiEditId=null; S.eoiSS=[];
+  renderOpen();
+}
+
+// ════════════════════════════════════════════════
+// CLOSE TRADE MODAL
+// ════════════════════════════════════════════════
+function openCloseModal(id){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  S.cmEditId=id; S.cmData={result:'',biasPlayed:'',tp2r:'',tp15r:''}; S.cmSS=[];
+  document.getElementById('closeModalTitle').textContent='CLOSE TRADE — '+t.pair;
+  document.getElementById('cmEntry').value=t.entryPrice||'';
+  document.getElementById('cmClose').value=t.closePrice||'';
+  document.getElementById('cmSL').value=t.slPrice||'';
+  document.getElementById('cmNotes').value='';
+  document.getElementById('cmSsGrid').innerHTML='';
+  ['cmResultBtns','cmBiasBtns','cmTp2Btns','cmTp15Btns'].forEach(id=>
+    document.getElementById(id).querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim())
+  );
+  document.getElementById('closeModal').classList.add('open');
+  setTimeout(()=>updateCmAutoResult(), 50);
+}
+function closeModalHide(){ document.getElementById('closeModal').classList.remove('open'); }
+function cmSeg(el, field, val, cls){
+  S.cmData[field]=val;
+  el.closest('.seg-btns').querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+  el.classList.add(cls);
+}
+function cmClearSkip(el){
+  S.cmData.result='';
+  el.closest('.seg-btns').querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+  updateCmAutoResult();
+}
+function updateCmAutoResult(){
+  const t = S.cmEditId ? S.trades.find(t=>t.id===S.cmEditId) : null;
+  const e=parseFloat(document.getElementById('cmEntry')?.value);
+  const c=parseFloat(document.getElementById('cmClose')?.value);
+  const sl=parseFloat(document.getElementById('cmSL')?.value);
+  const el=document.getElementById('cmAutoResult'); if(!el) return;
+  if(isNaN(e)||isNaN(c)||isNaN(sl)){ el.textContent='— Enter prices below'; el.style.color='var(--muted)'; return; }
+  const isSell = t && t.tradeType === 'SELL';
+  const profit = isSell ? (e - c) : (c - e);
+  const risk = Math.abs(e - sl);
+  const rVal = risk>0 ? (profit/risk).toFixed(2)+'R' : '';
+  if(profit>0){ el.textContent='WIN '+(rVal?'· +'+rVal:''); el.style.color='var(--bull)'; }
+  else if(profit<0){ el.textContent='LOSS '+(rVal?'· '+rVal:''); el.style.color='var(--bear)'; }
+  else { el.textContent='BREAK EVEN · 0R'; el.style.color='var(--gold)'; }
+}
+function saveClosure(){
+  if(!S.cmData.biasPlayed){alert('Select bias that played out.');return;}
+  const t=S.trades.find(t=>t.id===S.cmEditId); if(!t) return;
+  const entryVal=parseFloat(document.getElementById('cmEntry').value)||t.entryPrice;
+  const closeVal=parseFloat(document.getElementById('cmClose').value)||t.closePrice;
+  const slVal=parseFloat(document.getElementById('cmSL').value)||t.slPrice;
+  // Auto-compute result from prices if not manually set to SKIP
+  let result = S.cmData.result; // may be 'SKIP' if manually chosen
+  if(result !== 'SKIP' && entryVal && closeVal && slVal){
+    const isSell = (t.tradeType === 'SELL');
+    const profit = isSell ? (entryVal - closeVal) : (closeVal - entryVal);
+    result = profit > 0 ? 'WIN' : profit < 0 ? 'LOSS' : 'BE';
+  } else if(!result){
+    alert('Cannot determine result. Enter entry, close, and stop loss prices — or mark as SKIP.');
+    return;
+  }
+  t.status='closed'; t.result=result; t.biasPlayed=S.cmData.biasPlayed;
+  t.biasMatch=(t.biasSet===S.cmData.biasPlayed)?'YES':'NO';
+  t.tp2r=S.cmData.tp2r||'N/A'; t.tp15r=S.cmData.tp15r||'N/A';
+  t.entryPrice=entryVal; t.closePrice=closeVal; t.slPrice=slVal;
+  t.closeNotes=document.getElementById('cmNotes').value.trim();
+  t.closeTime=new Date().toISOString();
+  t.eodScreenshots=[...(t.eodScreenshots||[]),...S.cmSS];
+  saveTrade(t); closeModalHide();
+  S.cmEditId=null; S.cmSS=[];
+  updateOpenBadge(); renderOpen(); renderDashboard();
+  navTo('closed');
+}
+
+// ════════════════════════════════════════════════
+// EDIT CLOSED TRADE MODAL
+// ════════════════════════════════════════════════
+function openEditClosedModal(id){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  S.ecEditId=id; S.ecData={result:t.result,tp2r:t.tp2r,tp15r:t.tp15r}; S.ecSS=[];
+  document.getElementById('editClosedTitle').textContent='EDIT — '+t.pair;
+  document.getElementById('ecEntry').value=t.entryPrice||'';
+  document.getElementById('ecClose').value=t.closePrice||'';
+  document.getElementById('ecSL').value=t.slPrice||'';
+  document.getElementById('ecFollowup').value=t.followupNotes||'';
+  document.getElementById('ecSsGrid').innerHTML='';
+  // preset seg buttons
+  const presetSeg=(groupId, val, valMap)=>{
+    document.getElementById(groupId).querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+    const match=[...document.getElementById(groupId).querySelectorAll('.seg-btn')].find(b=>b.textContent.trim()===val||b.getAttribute('onclick')?.includes("'"+val+"'"));
+    if(match){ const oc=match.getAttribute('onclick'); const cls=oc?.match(/'(sel-\w+)'/)?.[1]; if(cls) match.classList.add(cls); }
+  };
+  document.getElementById('editClosedModal').classList.add('open');
+  // show current result in auto display
+  setTimeout(()=>updateEcAutoResult(), 50);
+}
+function ecSeg(el, field, val, cls){
+  S.ecData[field]=val;
+  el.closest('.seg-btns').querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+  el.classList.add(cls);
+}
+function ecClearSkip(el){
+  S.ecData.result='';
+  el.closest('.seg-btns').querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+}
+function updateEcAutoResult(){
+  const t = S.ecEditId ? S.trades.find(t=>t.id===S.ecEditId) : null;
+  const e=parseFloat(document.getElementById('ecEntry')?.value);
+  const c=parseFloat(document.getElementById('ecClose')?.value);
+  const sl=parseFloat(document.getElementById('ecSL')?.value);
+  const el=document.getElementById('ecAutoResult'); if(!el) return;
+  if(isNaN(e)||isNaN(c)){ el.textContent=t?(t.result||'—'):'—'; el.style.color='var(--ink)'; return; }
+  const isSell = t && t.tradeType === 'SELL';
+  const profit = isSell ? (e - c) : (c - e);
+  const risk = (!isNaN(sl) && sl) ? Math.abs(e - sl) : null;
+  const rVal = risk&&risk>0 ? (profit/risk).toFixed(2)+'R' : '';
+  if(profit>0){ el.textContent='WIN '+(rVal?'· +'+rVal:''); el.style.color='var(--bull)'; }
+  else if(profit<0){ el.textContent='LOSS '+(rVal?'· '+rVal:''); el.style.color='var(--bear)'; }
+  else { el.textContent='BREAK EVEN · 0R'; el.style.color='var(--gold)'; }
+}
+function saveEditClosed(){
+  const t=S.trades.find(t=>t.id===S.ecEditId); if(!t) return;
+  // Only apply manual result override if it's a SKIP
+  if(S.ecData.result==='SKIP') t.result=S.ecData.result;
+  if(S.ecData.tp2r) t.tp2r=S.ecData.tp2r;
+  if(S.ecData.tp15r) t.tp15r=S.ecData.tp15r;
+  const entryVal=parseFloat(document.getElementById('ecEntry').value)||t.entryPrice;
+  const closeVal=parseFloat(document.getElementById('ecClose').value)||t.closePrice;
+  const slVal=parseFloat(document.getElementById('ecSL').value)||t.slPrice;
+  t.entryPrice=entryVal; t.closePrice=closeVal; t.slPrice=slVal;
+  // Auto-recompute WIN/LOSS unless SKIP
+  if(t.result !== 'SKIP' && entryVal && closeVal){
+    const isSell = t.tradeType === 'SELL';
+    const profit = isSell ? (entryVal - closeVal) : (closeVal - entryVal);
+    t.result = profit > 0 ? 'WIN' : profit < 0 ? 'LOSS' : 'BE';
+  }
+  t.followupNotes=document.getElementById('ecFollowup').value.trim();
+  if(S.ecSS.length>0) t.followupScreenshots=[...(t.followupScreenshots||[]),...S.ecSS];
+  // recalc bias match
+  t.biasMatch=(t.biasSet&&t.biasPlayed&&t.biasSet===t.biasPlayed)?'YES':'NO';
+  saveTrades();
+  document.getElementById('editClosedModal').classList.remove('open');
+  S.ecEditId=null; S.ecSS=[];
+  renderClosed(); renderDashboard();
+}
+
+// ════════════════════════════════════════════════
+// CLOSED TRADES
+// ════════════════════════════════════════════════
+function renderClosed(){
+  const search=(document.getElementById('closedSearch')?.value||'').toLowerCase();
+  const fr=document.getElementById('filterResult')?.value||'';
+  const fg=document.getElementById('filterGrade')?.value||'';
+  const closed=S.trades.filter(t=>t.status==='closed').filter(t=>{
+    const ms=!search||t.pair.toLowerCase().includes(search)||(t.ideaNotes||'').toLowerCase().includes(search)||(t.closeNotes||'').toLowerCase().includes(search)||(t.followupNotes||'').toLowerCase().includes(search);
+    return ms&&(!fr||t.result===fr)&&(!fg||t.grade===fg);
+  });
+  const tbody=document.getElementById('closedBody'), empty=document.getElementById('closedEmpty');
+  if(closed.length===0){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=closed.map(t=>{
+    const rc=t.result==='WIN'?'win':t.result==='LOSS'?'loss':'skip';
+    const gc=gradeClass(t.grade);
+    const r=calcR(t);
+    const rDisplay=r!==null?(r>=0?'+':'')+r.toFixed(2)+'R':'—';
+    const rColor=r===null?'var(--muted)':r>0?'var(--bull)':r<0?'var(--bear)':'var(--gold)';
+    const bsc=t.biasSet==='BULLISH'?'bull':t.biasSet==='BEARISH'?'bear':'neutral';
+    const hasFollowup=t.followupNotes||(t.followupScreenshots&&t.followupScreenshots.length>0);
+    return`<tr>
+      <td style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted)">${t.date}</td>
+      <td style="font-family:'Azeret Mono',monospace;font-weight:700">${t.pair}</td>
+      <td class="score-cell" style="color:${gc==='aplus'?'var(--aplus)':gc==='a'?'var(--bull)':gc==='b'?'var(--gold)':gc==='c'?'#7a3a00':'var(--bear)'}">${t.score!==null?t.score.toFixed(1):'—'}</td>
+      <td><span class="pill pill-${gc}">${t.grade}</span></td>
+      <td><span class="pill pill-${rc}">${t.result||'—'}</span></td>
+      <td style="font-family:'Azeret Mono',monospace;font-weight:700;color:${rColor}">${rDisplay}</td>
+      <td style="font-family:'Azeret Mono',monospace;font-size:10px">${t.entryPrice||'—'}</td>
+      <td style="font-family:'Azeret Mono',monospace;font-size:10px">${t.slPrice||'—'}</td>
+      <td><span class="pill pill-${t.tp2r==='YES'?'yes':'no'}">${t.tp2r||'—'}</span></td>
+      <td><span class="pill pill-${t.tp15r==='YES'?'yes':'no'}">${t.tp15r||'—'}</span></td>
+      <td><span class="pill pill-${bsc}">${t.biasSet||'—'}</span></td>
+      <td style="font-size:10px;color:var(--muted);max-width:120px;white-space:normal">${t.followupNotes||t.closeNotes||t.ideaNotes||'—'} ${hasFollowup?'<span style="color:var(--gold)">★</span>':''}</td>
+      <td style="white-space:nowrap">
+        <button class="edit-btn" onclick="openEditClosedModal(${t.id})">✏ EDIT</button>
+        <button class="del-btn" onclick="deleteTrade(${t.id})">DEL</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+function deleteTrade(id){
+  if(!confirm('Delete this trade permanently?')) return;
+  S.trades=S.trades.filter(t=>t.id!==id); deleteTradeSupa(id); renderClosed(); renderDashboard();
+}
+
+// ════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════
+function renderDashboard(){
+  const closed=S.trades.filter(t=>t.status==='closed');
+  const open=S.trades.filter(t=>t.status==='open');
+  const wins=closed.filter(t=>t.result==='WIN').length;
+  const losses=closed.filter(t=>t.result==='LOSS').length;
+  const wr=(wins+losses)>0?Math.round(wins/(wins+losses)*100):0;
+  const bm=closed.filter(t=>t.biasMatch==='YES').length;
+  const bt=closed.filter(t=>t.biasMatch==='YES'||t.biasMatch==='NO').length;
+  const bpct=bt>0?Math.round(bm/bt*100):0;
+  const scores=closed.filter(t=>t.score!==null).map(t=>t.score);
+  const avg=scores.length>0?(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1):'—';
+
+  document.getElementById('dashStats').innerHTML=`
+    <div class="stat-box"><div class="stat-label">Win Rate</div><div class="stat-val ${wr>=50?'bull':'bear'}">${wr}%</div><div class="stat-sub">${wins}W / ${losses}L</div></div>
+    <div class="stat-box"><div class="stat-label">Bias Acc.</div><div class="stat-val ${bpct>=60?'bull':'bear'}">${bpct}%</div><div class="stat-sub">${bm}/${bt} correct</div></div>
+    <div class="stat-box"><div class="stat-label">Avg Score</div><div class="stat-val gold">${avg}</div><div class="stat-sub">out of 10</div></div>
+    <div class="stat-box"><div class="stat-label">Trades</div><div class="stat-val">${closed.length}</div><div class="stat-sub">${open.length} open</div></div>`;
+
+  // R grid
+  const rValues=closed.filter(t=>t.result==='WIN'||t.result==='LOSS').map(t=>({r:calcR(t),result:t.result}));
+  const wins2r=rValues.filter(x=>x.r!==null&&x.r>=2).length;
+  const wins15r=rValues.filter(x=>x.r!==null&&x.r>=1.5&&x.r<2).length;
+  const wins1r=rValues.filter(x=>x.r!==null&&x.r>=1&&x.r<1.5).length;
+  const be=rValues.filter(x=>x.r!==null&&x.r>-0.2&&x.r<1).length;
+  const loss05=rValues.filter(x=>x.r!==null&&x.r<0&&x.r>=-0.5).length;
+  const loss1=rValues.filter(x=>x.r!==null&&x.r<-0.5).length;
+  const totalR=rValues.filter(x=>x.r!==null).reduce((s,x)=>s+x.r,0);
+
+  document.getElementById('rGrid').innerHTML=`
+    <div class="r-box win-box">
+      <div class="r-box-label">WINS</div>
+      <div class="r-amounts">
+        <div class="r-line"><span>≥ 2R</span><span class="r-count">${wins2r}</span></div>
+        <div class="r-line"><span>1.5R – 2R</span><span class="r-count">${wins15r}</span></div>
+        <div class="r-line"><span>1R – 1.5R</span><span class="r-count">${wins1r}</span></div>
+      </div>
+    </div>
+    <div class="r-box be-box">
+      <div class="r-box-label">BREAK EVEN</div>
+      <div class="r-amounts">
+        <div class="r-line"><span>0 to 1R</span><span class="r-count">${be}</span></div>
+        <div class="r-line" style="margin-top:8px"><span style="font-size:9px;color:var(--muted)">Total R</span><span class="r-count" style="font-size:13px;color:${totalR>=0?'var(--bull)':'var(--bear)'}">${totalR>=0?'+':''}${totalR.toFixed(1)}R</span></div>
+      </div>
+    </div>
+    <div class="r-box loss-box">
+      <div class="r-box-label">LOSSES</div>
+      <div class="r-amounts">
+        <div class="r-line"><span>0 to -0.5R</span><span class="r-count">${loss05}</span></div>
+        <div class="r-line"><span>> -0.5R</span><span class="r-count">${loss1}</span></div>
+      </div>
+    </div>`;
+
+  // Grade breakdown
+  const grades=['A+','A','B','C','No Trade'];
+  document.getElementById('gradeBreakdown').innerHTML=grades.map(g=>{
+    const cnt=closed.filter(t=>t.grade===g).length;
+    const pct=closed.length>0?Math.round(cnt/closed.length*100):0;
+    return`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span class="pill pill-${gradeClass(g)}" style="min-width:36px;text-align:center;font-size:8px">${g}</span>
+      <div style="flex:1;height:5px;background:var(--cream);border-radius:3px;overflow:hidden">
+        <div style="height:100%;background:${g==='A+'?'#00c853':g==='A'?'var(--bull)':g==='B'?'var(--gold)':g==='C'?'#c06000':'var(--bear)'};width:${pct}%"></div>
+      </div>
+      <span style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);min-width:20px;text-align:right">${cnt}</span>
+    </div>`;
+  }).join('');
+
+  // Open on home
+  const homeOpen=document.getElementById('homeOpenSection');
+  if(open.length>0){
+    homeOpen.innerHTML=`<div style="margin-top:4px"><div class="sec-head" style="margin-top:8px"><h2>OPEN TRADES</h2><span class="ni-badge" style="margin-left:4px">${open.length}</span><div class="sec-head-actions"><button class="btn-ghost btn-sm" onclick="navTo('open')">VIEW ALL →</button></div></div>
+    ${open.slice(0,2).map(t=>`<div class="open-banner" onclick="navTo('open')">
+      <div class="open-banner-icon">💡</div>
+      <div class="open-banner-body"><div class="open-banner-title">${t.pair} — ${t.date}</div>
+      <div class="open-banner-sub">${t.grade!=='N/A'?t.grade+' setup · ':''} ${t.session||''}</div></div>
+      <span style="font-family:'Azeret Mono',monospace;font-size:12px;color:var(--gold)">→</span>
+    </div>`).join('')}
+    ${open.length>2?`<div style="text-align:center;padding:6px;font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);cursor:pointer" onclick="navTo('open')">+${open.length-2} more → VIEW ALL</div>`:''}
+    </div>`;
+  } else { homeOpen.innerHTML=''; }
+
+  updateOpenBadge();
+  renderDriveStatus();
+}
+
+// ════════════════════════════════════════════════
+// EXCEL EXPORT
+// ════════════════════════════════════════════════
+function exportExcel(){
+  const closed=S.trades.filter(t=>t.status==='closed');
+  if(closed.length===0){alert('No closed trades to export.');return;}
+  const hdrs=['Date','Pair','Session','Score','Grade','Bias Set','Bias Played','Bias Match','Result','R Captured','TP 2R','TP 1.5R','Entry','Close','SL','Notes','Follow-up Notes'];
+  const rows=closed.map(t=>{
+    const r=calcR(t);
+    return[t.date,t.pair,t.session||'',t.score!=null?t.score:'',t.grade,t.biasSet||'',t.biasPlayed||'',t.biasMatch||'',t.result||'',r!=null?r.toFixed(2):'',t.tp2r,t.tp15r,t.entryPrice||'',t.closePrice||'',t.slPrice||'',t.closeNotes||t.ideaNotes||'',t.followupNotes||''];
+  });
+  const wb=XLSX.utils.book_new();
+  const wins=closed.filter(t=>t.result==='WIN').length, losses=closed.filter(t=>t.result==='LOSS').length;
+  const wr=(wins+losses)>0?(wins/(wins+losses)*100).toFixed(1)+'%':'N/A';
+  const bm=closed.filter(t=>t.biasMatch==='YES').length, bt=closed.filter(t=>t.biasMatch==='YES'||t.biasMatch==='NO').length;
+  const bp=bt>0?(bm/bt*100).toFixed(1)+'%':'N/A';
+  const scores=closed.filter(t=>t.score!==null).map(t=>t.score);
+  const av=scores.length>0?(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1):'N/A';
+  const rVals=closed.map(t=>calcR(t)).filter(r=>r!==null);
+  const totalR=rVals.reduce((a,b)=>a+b,0).toFixed(2);
+  const sumData=[['ICT TRADING JOURNAL — SUMMARY'],[''],
+    ['Metric','Value'],['Total Closed',closed.length],['Open',S.trades.filter(t=>t.status==='open').length],
+    ['Wins',wins],['Losses',losses],['Win Rate',wr],[''],['Bias Accuracy',bp],[''],
+    ['Avg Setup Score',av],['Total R',totalR],[''],['TP 2R Hits',closed.filter(t=>t.tp2r==='YES').length],
+    ['TP 1.5R Hits',closed.filter(t=>t.tp15r==='YES').length],[''],['Exported',new Date().toLocaleString()]];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sumData),'Summary');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([hdrs,...rows]),'Trade Log');
+  XLSX.writeFile(wb,'ICT_Journal_'+new Date().toISOString().split('T')[0]+'.xlsx');
+}
+
+// ════════════════════════════════════════════════
+// GOOGLE DRIVE
+// ════════════════════════════════════════════════
+function openDriveModal(){ renderDriveStatus(); renderFolderStatus(); document.getElementById('driveModal').classList.add('open'); }
+
+// ════════════════════════════════════════════════
+// FILE SYSTEM ACCESS — FOLDER PERSISTENCE
+// Uses IndexedDB to store the DirectoryHandle across sessions
+// ════════════════════════════════════════════════
+const IDB_NAME='ict_journal_fs', IDB_STORE='handles', IDB_KEY='exportFolder';
+
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(IDB_NAME,1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore(IDB_STORE);
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+async function idbGet(key){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readonly');
+    const req=tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+async function idbSet(key,val){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(val,key);
+    tx.oncomplete=()=>res();
+    tx.onerror=e=>rej(e.target.error);
+  });
+}
+async function idbDel(key){
+  const db=await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete=()=>res();
+    tx.onerror=e=>rej(e.target.error);
+  });
+}
+
+// ════════════════════════════════════════════════
+// EXPORT HELPERS
+// ════════════════════════════════════════════════
+function buildPayload(){
+  return JSON.stringify({version:6, exportedAt:new Date().toISOString(), trades:S.trades},null,2);
+}
+function exportFilename(){
+  return 'ict-journal-backup-'+new Date().toISOString().split('T')[0]+'.json';
+}
+
+// Write to the stored folder handle
+async function writeToFolder(dirHandle, silent=false){
+  const filename=exportFilename();
+  const json=buildPayload();
+  try{
+    const fh=await dirHandle.getFileHandle(filename,{create:true});
+    const w=await fh.createWritable();
+    await w.write(json); await w.close();
+    const now=new Date().toISOString();
+    localStorage.setItem('ict_last_backup', now);
+    localStorage.setItem('ict_last_auto_export', now);
+    localStorage.setItem('ict_export_filename', filename);
+    if(!silent) renderDriveStatus();
+    return {ok:true, filename, size:(json.length/1024).toFixed(1)};
+  }catch(e){
+    return {ok:false, err:e.message};
+  }
+}
+
+// ════════════════════════════════════════════════
+// PICK FOLDER
+// ════════════════════════════════════════════════
+async function pickExportFolder(){
+  if(!window.showDirectoryPicker){
+    showFsaUnsupported(); return;
+  }
+  try{
+    const dirHandle=await window.showDirectoryPicker({mode:'readwrite', startIn:'documents'});
+    // Verify write permission
+    const perm=await dirHandle.requestPermission({mode:'readwrite'});
+    if(perm!=='granted'){
+      setFolderStatus('⚠ Permission denied — please allow write access.','var(--bear)'); return;
+    }
+    await idbSet(IDB_KEY, dirHandle);
+    localStorage.setItem('ict_export_folder_name', dirHandle.name);
+    renderFolderStatus();
+    renderDriveStatus();
+    // Immediately write first export
+    const result=await writeToFolder(dirHandle);
+    if(result.ok){
+      setExportStatus('✓ Folder set & first backup written — '+result.filename+' ('+result.size+' KB)','var(--bull)');
+    } else {
+      setExportStatus('✕ Folder set but write failed: '+result.err,'var(--bear)');
+    }
+  }catch(e){
+    if(e.name!=='AbortError') setFolderStatus('✕ Error: '+e.message,'var(--bear)');
+  }
+}
+
+async function clearExportFolder(){
+  if(!confirm('Remove the saved folder? Auto-export will stop until you select a new one.')) return;
+  await idbDel(IDB_KEY);
+  localStorage.removeItem('ict_export_folder_name');
+  renderFolderStatus(); renderDriveStatus();
+  setFolderStatus('Folder cleared.','var(--muted)');
+}
+
+// ════════════════════════════════════════════════
+// EXPORT TO FOLDER (manual button)
+// ════════════════════════════════════════════════
+async function exportToFolder(){
+  const dirHandle=await idbGet(IDB_KEY);
+  if(!dirHandle){ setExportStatus('No folder selected. Click SELECT FOLDER first.','var(--bear)'); return; }
+  // Re-request permission (may be needed after page reload)
+  const perm=await dirHandle.requestPermission({mode:'readwrite'});
+  if(perm!=='granted'){ setExportStatus('⚠ Permission denied. Please re-select the folder.','var(--bear)'); return; }
+  setExportStatus('Writing…','var(--muted)');
+  const result=await writeToFolder(dirHandle);
+  if(result.ok){
+    setExportStatus('✓ Written — '+result.filename+' ('+result.size+' KB)','var(--bull)');
+    renderDriveStatus();
+  } else {
+    setExportStatus('✕ Write failed: '+result.err,'var(--bear)');
+  }
+}
+
+// ════════════════════════════════════════════════
+// FALLBACK DOWNLOAD
+// ════════════════════════════════════════════════
+function exportDownload(){
+  const json=buildPayload();
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=exportFilename(); a.click(); URL.revokeObjectURL(url);
+  const size=(blob.size/1024).toFixed(1);
+  localStorage.setItem('ict_last_backup',new Date().toISOString());
+  setExportStatus('✓ Downloaded — '+S.trades.length+' trades · '+size+' KB','var(--bull)');
+  renderDriveStatus();
+}
+
+// ════════════════════════════════════════════════
+// AUTO-EXPORT ON STARTUP (weekly)
+// ════════════════════════════════════════════════
+async function checkAutoExport(){
+  const folderName=localStorage.getItem('ict_export_folder_name');
+  if(!folderName) return; // no folder configured
+  const lastStr=localStorage.getItem('ict_last_auto_export');
+  const SEVEN_DAYS=7*24*60*60*1000;
+  if(lastStr && (Date.now()-new Date(lastStr).getTime()) < SEVEN_DAYS) return; // not due yet
+  // Due — try to write
+  try{
+    const dirHandle=await idbGet(IDB_KEY);
+    if(!dirHandle) return;
+    // queryPermission (non-blocking, no dialog) — only proceed if already granted
+    const perm=await dirHandle.queryPermission({mode:'readwrite'});
+    if(perm!=='granted') return; // don't prompt on auto, wait for user interaction
+    const result=await writeToFolder(dirHandle, true);
+    if(result.ok){
+      // Show a small non-blocking toast
+      showAutoExportToast('Weekly backup written to '+folderName+' — '+result.filename);
+    }
+  }catch(e){ /* silent fail on auto */ }
+}
+
+function showAutoExportToast(msg){
+  let t=document.getElementById('autoExportToast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='autoExportToast';
+    t.style.cssText='position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-family:\'Azeret Mono\',monospace;font-size:10px;padding:8px 14px;border-radius:5px;z-index:9999;border-left:3px solid #34a853;max-width:320px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+    document.body.appendChild(t);
+  }
+  t.textContent='✓ '+msg;
+  t.style.display='block';
+  setTimeout(()=>{ t.style.display='none'; }, 5000);
+}
+
+// ════════════════════════════════════════════════
+// IMPORT RESTORE
+// ════════════════════════════════════════════════
+function importBackup(input){
+  const file=input.files[0]; if(!file) return;
+  const statusEl=document.getElementById('importStatus');
+  if(statusEl){statusEl.textContent='Reading file…'; statusEl.style.color='var(--muted)';}
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.trades||!Array.isArray(data.trades)) throw new Error('Invalid backup — no trades array found.');
+      const dated=data.exportedAt?data.exportedAt.split('T')[0]:'unknown date';
+      if(!confirm('Restore '+data.trades.length+' trades from backup dated '+dated+'?\n\nThis will REPLACE all current data. Export first if needed.')){
+        if(statusEl){statusEl.textContent='Restore cancelled.';} return;
+      }
+      S.trades=data.trades; saveTrades();
+      localStorage.setItem('ict_last_backup',data.exportedAt||new Date().toISOString());
+      if(statusEl){statusEl.textContent='✓ Restored '+S.trades.length+' trades from '+dated+'.'; statusEl.style.color='var(--bull)';}
+      renderDriveStatus(); renderDashboard(); renderOpen(); renderClosed(); updateOpenBadge();
+    }catch(e){
+      if(statusEl){statusEl.textContent='✕ Error: '+e.message; statusEl.style.color='var(--bear)';}
+    }
+  };
+  r.readAsText(file); input.value='';
+}
+
+// ════════════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════════════
+function setExportStatus(msg, color){
+  const el=document.getElementById('exportStatus'); if(!el) return;
+  el.textContent=msg; el.style.color=color;
+}
+function setFolderStatus(msg, color){
+  const el=document.getElementById('folderStatus'); if(!el) return;
+  el.textContent=msg; el.style.color=color||'var(--ink)';
+}
+function showFsaUnsupported(){
+  const el=document.getElementById('fsaNotice'); if(!el) return;
+  el.style.background='#fff3f3'; el.style.borderColor='var(--bear)'; el.style.color='var(--bear)';
+  el.textContent='⚠ Your browser does not support folder selection (File System Access API). Use Chrome or Edge for auto-export. The Download button always works as a fallback.';
+}
+
+async function renderFolderStatus(){
+  const name=localStorage.getItem('ict_export_folder_name');
+  const clearBtn=document.getElementById('clearFolderBtn');
+  const exportFolderBtn=document.getElementById('exportToFolderBtn');
+  const statusEl=document.getElementById('folderStatus');
+  if(!name){
+    if(statusEl){statusEl.textContent='No folder selected'; statusEl.style.color='var(--muted)';}
+    if(clearBtn) clearBtn.style.display='none';
+    if(exportFolderBtn) exportFolderBtn.style.display='none';
+    return;
+  }
+  // Check if handle is still accessible
+  const dirHandle=await idbGet(IDB_KEY).catch(()=>null);
+  const perm=dirHandle?await dirHandle.queryPermission({mode:'readwrite'}).catch(()=>'unknown'):'none';
+  const last=localStorage.getItem('ict_last_auto_export');
+  const lastLabel=last?new Date(last).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'never';
+  const nextExport=last?new Date(new Date(last).getTime()+7*24*60*60*1000):null;
+  const nextLabel=nextExport?nextExport.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'next open';
+  if(statusEl){
+    statusEl.innerHTML=
+      '<span style="color:var(--bull);font-weight:700">📁 '+name+'</span>'
+      +'<br>Permission: '+(perm==='granted'?'<span style="color:var(--bull)">Granted ✓</span>':'<span style="color:var(--gold)">'+perm+' — open modal to restore</span>')
+      +'<br>Last export: '+lastLabel
+      +'<br>Next auto-export: '+nextLabel;
+  }
+  if(clearBtn) clearBtn.style.display='';
+  if(exportFolderBtn) exportFolderBtn.style.display='';
+}
+
+function renderDriveAccList(){}
+function addDriveAccount(){}
+function removeDrive(){}
+function setActiveDrive(){}
+
+function renderDriveStatus(){
+  const dot=document.getElementById('driveDot'), txt=document.getElementById('driveBarText'), btn=document.getElementById('driveBtn');
+  const last=localStorage.getItem('ict_last_backup');
+  const folder=localStorage.getItem('ict_export_folder_name');
+  if(last){
+    const d=new Date(last);
+    const label=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    if(dot) dot.className='drive-dot on';
+    if(txt) txt.textContent=(folder?'Auto-export: ':'Last backup: ')+label+(folder?' → '+folder:'');
+    if(btn) btn.className='gdrive-btn connected';
+  } else {
+    if(dot) dot.className='drive-dot off';
+    if(txt) txt.textContent=folder?'Folder set — no export yet':'No backup saved yet';
+    if(btn) btn.className='gdrive-btn';
+  }
+}
+
+// ════════════════════════════════════════════════
+// PWA INSTALL
+// ════════════════════════════════════════════════
+let dip=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();dip=e;showInstallBanner();});
+function showInstallBanner(){
+  const w=document.getElementById('installBannerWrap'); if(!w) return;
+  w.innerHTML=`<div class="install-banner"><div style="font-size:20px">📲</div><p><strong>Install ICT Journal</strong><br>Add to home screen — works offline like a native app</p><button class="btn-gold btn-sm" onclick="triggerInstall()">INSTALL</button><button class="btn-ghost btn-sm" onclick="this.closest('.install-banner').remove()">LATER</button></div>`;
+}
+async function triggerInstall(){
+  if(!dip){alert('Tap browser menu → "Add to Home Screen"');return;}
+  dip.prompt(); const{outcome}=await dip.userChoice; dip=null;
+  document.getElementById('installBannerWrap').innerHTML='';
+}
+
+
+// ════════════════════════════════════════════════
+// INTRADAY CHECKLIST SCHEMA
+// ════════════════════════════════════════════════
+const INTRA_CARDS = [
+  { id:'ic1', num:'I-01', title:'HTF Bias Alignment', tf:'Daily / 4H', maxPts:3,
+    kills:[
+      {id:'ik_monday', text:'Monday — no intraday trade. Wait for Monday range to form first.'},
+      {id:'ik_conflict', text:'Intraday direction CONFLICTS with weekly bias — do not trade against the swing.'},
+    ],
+    questions:[
+      { id:'iq_htf_align', label:"Does today's intraday direction align with the linked weekly bias?",
+        hint:'Intraday trades must flow in the direction of the HTF swing. Counter-trend is lower probability.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Yes — intraday direction matches weekly bias exactly · 3pts', pts:3, val:'ia_match'},
+          {label:'Partial — HTF neutral but intraday has clear structure · 1pt', pts:1, val:'ia_partial'},
+          {label:'No — intraday against weekly bias · 0pts', pts:0, val:'ia_conflict'},
+        ]},
+    ]},
+  { id:'ic2', num:'I-02', title:'4H / 1H Entry Zone', tf:'4H · 1H', maxPts:3,
+    kills:[],
+    questions:[
+      { id:'iq_4h_zone', label:'Is price at or approaching a key 4H OB / FVG today?',
+        hint:'The 4H zone provides the anchor for intraday entries. Without a 4H zone, the trade is low probability.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Price at 4H OB or FVG that aligns with weekly bias · 3pts', pts:3, val:'iz_at4h'},
+          {label:'Price near 4H zone (within 10 pips / 5 points) · 2pts', pts:2, val:'iz_near4h'},
+          {label:'No clear 4H zone — using 1H only · 1pt', pts:1, val:'iz_1h_only'},
+          {label:'No clear zone at all · 0pts', pts:0, val:'iz_none'},
+        ]},
+    ]},
+  { id:'ic3', num:'I-03', title:'15m / 5m Liquidity Sweep', tf:'15m · 5m', maxPts:2,
+    kills:[
+      {id:'ik_nolq', text:'No liquidity sweep on 15m/5m — do not anticipate, wait for the sweep.'},
+    ],
+    questions:[
+      { id:'iq_lq_sweep', label:'Has there been a 15m or 5m liquidity sweep into the 4H/1H zone?',
+        hint:'Look for equal lows swept (for longs) or equal highs swept (for shorts) on the 15m or 5m before entry.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Clean 15m sweep into the 4H zone, rejection candle confirmed · 2pts', pts:2, val:'is_clean15'},
+          {label:'5m sweep present, 15m still developing · 1pt', pts:1, val:'is_5m'},
+          {label:'No sweep yet — monitoring only · 0pts', pts:0, val:'is_none'},
+        ]},
+    ]},
+  { id:'ic4', num:'I-04', title:'Entry Timeframe Confluence', tf:'5m · 1m', maxPts:2,
+    kills:[
+      {id:'ik_fvgfilled', text:'5m FVG already filled — entry trigger gone, do not chase.'},
+      {id:'ik_rr', text:'R:R to TP is less than 1.5:1 — skip this setup.'},
+    ],
+    questions:[
+      { id:'iq_entry_fvg', label:'Is there a 5m FVG or 1m OB formed from the sweep move?',
+        hint:'The 5m FVG is your limit order entry. Place buy/sell limit at the 50% of the FVG.',
+        options:[
+          {label:'— Select —', pts:null, val:''},
+          {label:'Clean unfilled 5m FVG formed from the sweep candle · 2pts', pts:2, val:'ie_fvg'},
+          {label:'1m OB present but no 5m FVG · 1pt', pts:1, val:'ie_ob'},
+          {label:'No entry model — would be a market order only · 0pts', pts:0, val:'ie_none'},
+        ]},
+    ]},
+];
+
+// ════════════════════════════════════════════════
+// TAG SYSTEM STATE
+// ════════════════════════════════════════════════
+// Tags are stored per-entry. S.ideaTags, S.wbTags, S.intraTags hold current editing state.
+// wbSS = weekly bias screenshots, wbnSS = wb note screenshots
+Object.assign(S, {
+  ideaTags: [],
+  wbTags: ['weekly'],
+  intraTags: ['intraday'],
+  intraAnswers: {},
+  intraKills: {},
+  intraType: 'BUY',
+  intraSS: [],
+  wbSS: [],
+  wbnSS: [],
+  wbData: {bias:''},
+  wbEditId: null,
+  wbNoteEditId: null,
+  weeklies: JSON.parse(localStorage.getItem('ict_weeklies_v1') || '[]'),
+});
+
+function saveWeeklies(){ localStorage.setItem('ict_weeklies_v1', JSON.stringify(S.weeklies)); }
+
+// ── TAG UI HELPERS ──
+function renderTagsInWrap(wrapId, tagsArr, ctx){
+  const wrap = document.getElementById(wrapId); if(!wrap) return;
+  // Remove existing tag spans
+  wrap.querySelectorAll('.tag.rm').forEach(el=>el.remove());
+  const inp = wrap.querySelector('.tag-input');
+  // Insert tags before input
+  tagsArr.forEach((tag, i) => {
+    const span = document.createElement('span');
+    span.className = 'tag tag-custom rm tag-clickable';
+    if(tag==='weekly') span.className='tag tag-weekly rm tag-clickable';
+    else if(tag==='intraday') span.className='tag tag-intraday rm tag-clickable';
+    span.innerHTML = '#'+tag+' <span onclick="removeTag('+i+',\''+ctx+'\')" style="font-size:10px;margin-left:2px;cursor:pointer">✕</span>';
+    wrap.insertBefore(span, inp);
+  });
+}
+
+function handleTagKey(event, ctx){
+  const inp = event.target;
+  const arrMap = {idea:'ideaTags', wb:'wbTags', intra:'intraTags'};
+  const wrapMap = {idea:'ideaTagWrap', wb:'wbTagWrap', intra:'intraTagWrap'};
+  const arr = arrMap[ctx]; const wrap = wrapMap[ctx];
+  if(!arr) return;
+  if(event.key === 'Enter' || event.key === ','){
+    event.preventDefault();
+    const val = inp.value.replace(/[#,]/g,'').trim().toLowerCase().replace(/\s+/g,'-');
+    if(val && !S[arr].includes(val)){
+      S[arr].push(val);
+      renderTagsInWrap(wrap, S[arr], ctx);
+    }
+    inp.value='';
+  } else if(event.key === 'Backspace' && inp.value === '' && S[arr].length > 0){
+    S[arr].pop();
+    renderTagsInWrap(wrap, S[arr], ctx);
+  }
+}
+
+function removeTag(i, ctx){
+  const arrMap = {idea:'ideaTags', wb:'wbTags', intra:'intraTags'};
+  const wrapMap = {idea:'ideaTagWrap', wb:'wbTagWrap', intra:'intraTagWrap'};
+  const arr = arrMap[ctx]; const wrap = wrapMap[ctx];
+  if(!arr) return;
+  S[arr].splice(i,1);
+  renderTagsInWrap(wrap, S[arr], ctx);
+}
+
+function getTagsFromWrap(ctx){
+  const arrMap = {idea:'ideaTags', wb:'wbTags', intra:'intraTags'};
+  return [...(S[arrMap[ctx]]||[])];
+}
+
+// ── READ TAGS FROM WRAP (handles any pending typed tag) ──
+function harvestTags(ctx){
+  const arrMap = {idea:'ideaTags', wb:'wbTags', intra:'intraTags'};
+  const wrapMap = {idea:'ideaTagWrap', wb:'wbTagWrap', intra:'intraTagWrap'};
+  const arr = arrMap[ctx]; const wrap = wrapMap[ctx];
+  if(!arr) return;
+  const inp = document.getElementById(wrap)?.querySelector('.tag-input');
+  if(inp && inp.value.trim()){
+    const val = inp.value.replace(/[#,]/g,'').trim().toLowerCase().replace(/\s+/g,'-');
+    if(val && !S[arr].includes(val)) S[arr].push(val);
+    inp.value='';
+    renderTagsInWrap(wrap, S[arr], ctx);
+  }
+}
+
+// ════════════════════════════════════════════════
+// WEEKLY BIAS
+// ════════════════════════════════════════════════
+function updateWeeklyBadge(){
+  const active = S.weeklies.filter(w=>w.status==='open').length;
+  const b = document.getElementById('weeklyBadge');
+  if(b){ b.textContent=active; b.style.display=active>0?'':'none'; }
+  const ts = document.getElementById('weeklyTileSub');
+  if(ts) ts.textContent = active>0 ? active+' active bias'+(active>1?'es':'') : 'Swing journals';
+}
+
+function openNewWeeklyModal(){
+  S.wbEditId = null; S.wbData={bias:''}; S.wbSS=[];
+  document.getElementById('weeklyModalTitle').textContent='NEW WEEKLY BIAS';
+  document.getElementById('wbSaveBtn').textContent='📅 SAVE WEEKLY BIAS';
+  document.getElementById('wbPair').value='';
+  document.getElementById('wbDate').value=new Date().toISOString().split('T')[0];
+  document.getElementById('wbNotes').value='';
+  document.getElementById('wbSsGrid').innerHTML='';
+  // Reset tags
+  S.wbTags=['weekly'];
+  const wrap=document.getElementById('wbTagWrap');
+  if(wrap){
+    // Clear old rm tags
+    wrap.querySelectorAll('.tag.rm').forEach(el=>el.remove());
+    renderTagsInWrap('wbTagWrap', S.wbTags, 'wb');
+  }
+  // Reset bias buttons
+  document.getElementById('wbBiasBtns').querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+  document.getElementById('weeklyModal').classList.add('open');
+}
+
+function wbSeg(el, field, val, cls){
+  S.wbData[field]=val;
+  el.closest('.seg-btns').querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+  el.classList.add(cls);
+}
+
+function saveWeeklyBias(){
+  harvestTags('wb');
+  const pair = document.getElementById('wbPair').value.trim();
+  const date = document.getElementById('wbDate').value;
+  if(!pair || !date){alert('Pair and date are required.');return;}
+  if(!S.wbData.bias){alert('Select a weekly bias direction.');return;}
+
+  if(S.wbEditId){
+    // edit mode
+    const w = S.weeklies.find(w=>w.id===S.wbEditId); if(!w) return;
+    w.pair=pair; w.date=date; w.bias=S.wbData.bias;
+    w.notes=document.getElementById('wbNotes').value.trim();
+    w.tags=[...S.wbTags];
+    if(S.wbSS.length>0) w.screenshots=[...(w.screenshots||[]),...S.wbSS];
+  } else {
+    const entry = {
+      id: Date.now(), status:'open', pair, date,
+      bias: S.wbData.bias,
+      notes: document.getElementById('wbNotes').value.trim(),
+      tags: [...S.wbTags],
+      screenshots: [...S.wbSS],
+      updates: [],
+      createdAt: new Date().toISOString(),
+      closedAt: null,
+    };
+    S.weeklies.unshift(entry);
+  }
+  const _savedW = S.wbEditId ? S.weeklies.find(w=>w.id===S.wbEditId) : S.weeklies[0];
+  if(_savedW) saveWeekly(_savedW);
+  document.getElementById('weeklyModal').classList.remove('open');
+  S.wbEditId=null; S.wbSS=[];
+  renderWeekly(); updateWeeklyBadge();
+  refreshIntraWeeklyDropdown();
+}
+
+function closeWeeklyBias(id){
+  if(!confirm('Close this weekly bias? It will move to closed status.')) return;
+  const w = S.weeklies.find(w=>w.id===id); if(!w) return;
+  w.status='closed'; w.closedAt=new Date().toISOString();
+  saveWeekly(w); renderWeekly(); updateWeeklyBadge(); refreshIntraWeeklyDropdown();
+}
+
+function reopenWeeklyBias(id){
+  const w = S.weeklies.find(w=>w.id===id); if(!w) return;
+  w.status='open'; w.closedAt=null;
+  saveWeekly(w); renderWeekly(); updateWeeklyBadge(); refreshIntraWeeklyDropdown();
+}
+
+function deleteWeeklyBias(id){
+  if(!confirm('Delete this weekly bias permanently?')) return;
+  S.weeklies = S.weeklies.filter(w=>w.id!==id);
+  deleteWeeklySupa(id); renderWeekly(); updateWeeklyBadge(); refreshIntraWeeklyDropdown();
+}
+
+function openEditWeeklyModal(id){
+  const w = S.weeklies.find(w=>w.id===id); if(!w) return;
+  S.wbEditId=id; S.wbData={bias:w.bias}; S.wbSS=[];
+  document.getElementById('weeklyModalTitle').textContent='EDIT — '+w.pair;
+  document.getElementById('wbSaveBtn').textContent='💾 SAVE CHANGES';
+  document.getElementById('wbPair').value=w.pair;
+  document.getElementById('wbDate').value=w.date;
+  document.getElementById('wbNotes').value=w.notes||'';
+  document.getElementById('wbSsGrid').innerHTML='';
+  S.wbTags=[...(w.tags||['weekly'])];
+  const wrap=document.getElementById('wbTagWrap');
+  if(wrap){ wrap.querySelectorAll('.tag.rm').forEach(el=>el.remove()); renderTagsInWrap('wbTagWrap', S.wbTags, 'wb'); }
+  // Preset bias
+  document.getElementById('wbBiasBtns').querySelectorAll('.seg-btn').forEach(b=>{
+    b.className=b.className.replace(/sel-\w+/g,'').trim();
+    const oc=b.getAttribute('onclick')||'';
+    if((w.bias==='BULLISH'&&oc.includes('BULLISH'))||(w.bias==='BEARISH'&&oc.includes('BEARISH'))||(w.bias==='NEUTRAL'&&oc.includes('NEUTRAL'))){
+      const cls=oc.match(/'(sel-\w+)'/)?.[1]; if(cls) b.classList.add(cls);
+    }
+  });
+  document.getElementById('weeklyModal').classList.add('open');
+}
+
+function openAddNoteModal(id){
+  S.wbNoteEditId=id; S.wbnSS=[];
+  const w=S.weeklies.find(w=>w.id===id); if(!w) return;
+  document.getElementById('wbNoteTitle').textContent='ADD NOTE — '+w.pair;
+  document.getElementById('wbNoteText').value='';
+  document.getElementById('wbNSsGrid').innerHTML='';
+  document.getElementById('wbNoteModal').classList.add('open');
+}
+
+function saveWbNote(){
+  const w=S.weeklies.find(w=>w.id===S.wbNoteEditId); if(!w) return;
+  const text=document.getElementById('wbNoteText').value.trim();
+  if(!text && S.wbnSS.length===0){alert('Add a note or screenshot.');return;}
+  w.updates=w.updates||[];
+  w.updates.push({text, screenshots:[...S.wbnSS], at:new Date().toISOString()});
+  saveWeekly(w);
+  document.getElementById('wbNoteModal').classList.remove('open');
+  S.wbNoteEditId=null; S.wbnSS=[];
+  renderWeekly();
+}
+
+// Render weekly bias page
+function renderWeekly(){
+  const activeTag = S.weeklyTagFilter || '';
+  const showClosed = S.weeklyShowClosed || false;
+  const list = S.weeklies.filter(w=>{
+    if(!showClosed && w.status==='closed') return false;
+    if(activeTag && !(w.tags||[]).includes(activeTag)) return false;
+    return true;
+  });
+
+  // Tag filter bar
+  const allTags = [...new Set(S.weeklies.flatMap(w=>w.tags||[]))];
+  const filterBar = document.getElementById('weeklyTagFilter');
+  if(filterBar){
+    filterBar.innerHTML =
+      '<span style="font-family:monospace;font-size:9px;color:var(--muted)">FILTER:</span>'
+      + '<span class="tag '+(activeTag===''?'tag-weekly':' tag-custom')+' tag-clickable" onclick="setWeeklyTagFilter(\'\')">ALL</span>'
+      + allTags.map(t=>`<span class="tag ${t==='weekly'?'tag-weekly':t==='intraday'?'tag-intraday':'tag-custom'} tag-clickable ${activeTag===t?'tag-weekly':''}" onclick="setWeeklyTagFilter('${t}')">#${t}</span>`).join('')
+      + '<span class="tag tag-custom tag-clickable" style="margin-left:auto" onclick="toggleWeeklyShowClosed()">'+(showClosed?'HIDE CLOSED':'SHOW CLOSED')+'</span>';
+  }
+
+  const c = document.getElementById('weeklyContainer'); if(!c) return;
+  if(list.length===0){
+    c.innerHTML='<div class="empty-state">No weekly bias entries'+(activeTag?' with tag #'+activeTag:'')+'.<br>'+(showClosed?'':'Open entries only. ')+'Tap "+ NEW BIAS" to add.</div>';
+    return;
+  }
+
+  c.innerHTML = list.map(w=>{
+    const biasClass = w.bias==='BULLISH'?'wb-bias-bull':'wb-bias-bear';
+    const biasSymbol = w.bias==='BULLISH'?'▲':w.bias==='BEARISH'?'▼':'—';
+    const tagHtml = (w.tags||[]).map(t=>`<span class="tag ${t==='weekly'?'tag-weekly':t==='intraday'?'tag-intraday':'tag-custom'}">#${t}</span>`).join('');
+    const ssHtml = (w.screenshots||[]).map((ss,si)=>`
+      <div class="ss-item">
+        <div class="ss-thumb ro" onclick="openLb('${ss.dataUrl}')">
+          <img src="${ss.dataUrl}" alt="">
+          <div class="ss-lbl">${ss.label||'Chart'}</div>
+        </div>
+        <div class="ss-del-bar">
+          <button class="ss-del-btn" onclick="deleteWbScreenshot(${w.id},${si})">✕ DELETE</button>
+        </div>
+      </div>`).join('');
+
+    // Linked intraday ideas
+    const linkedIntra = S.trades.filter(t=>t.isIntraday && t.weeklyLinkId===w.id);
+    const intraHtml = linkedIntra.length>0 ? `
+      <div class="wb-intraday-list">
+        <div class="wb-intraday-label">⚡ LINKED INTRADAY IDEAS (${linkedIntra.length})</div>
+        ${linkedIntra.map(t=>`<div class="wb-intraday-item" onclick="navTo('open')">
+          <div class="wb-intraday-pair">${t.pair}</div>
+          <div style="flex:1;font-size:11px;color:var(--muted)">${t.date} · ${t.session||''}</div>
+          <span class="pill pill-${t.result==='WIN'?'win':t.result==='LOSS'?'loss':t.status==='open'?'open':'skip'}">${t.status==='open'?'OPEN':t.result||'—'}</span>
+        </div>`).join('')}
+      </div>` : '';
+
+    // Updates timeline
+    const updatesHtml = (w.updates||[]).length>0 ? `
+      <div style="margin-top:10px;border-top:1px solid #d0d4f0;padding-top:10px">
+        <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:6px">NOTES TIMELINE</div>
+        ${[...w.updates].reverse().map(u=>`<div style="margin-bottom:8px;padding:8px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da">
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px">${new Date(u.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+          <div style="font-size:12px;line-height:1.6;white-space:pre-wrap">${u.text||''}</div>
+          ${(u.screenshots||[]).length>0?`<div class="ss-grid" style="margin-top:6px">${(u.screenshots||[]).map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""></div>`).join('')}</div>`:''}
+        </div>`).join('')}
+      </div>` : '';
+
+    return `<div class="wb-card" style="${w.status==='closed'?'opacity:0.65':''}">
+      <div class="wb-card-head">
+        <div>
+          <div class="wb-pair">${w.pair}</div>
+          <div class="wb-meta">Week of ${w.date} · ${w.status==='closed'?'CLOSED':'OPEN'}</div>
+        </div>
+        <div class="${'wb-bias '+biasClass}">${w.bias==='BULLISH'?'▲ BULLISH':w.bias==='BEARISH'?'▼ BEARISH':'— NEUTRAL'}</div>
+        <div style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">${tagHtml}</div>
+      </div>
+      <div class="wb-body">
+        ${w.notes?`<div class="wb-notes">${w.notes}</div>`:''}
+        ${ssHtml?`<div class="ss-grid" style="margin-bottom:8px">${ssHtml}</div>`:''}
+        ${updatesHtml}
+        ${intraHtml}
+        <div class="wb-actions">
+          ${w.status==='open'?`
+            <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openAddNoteModal(${w.id})">+ ADD NOTE</button>
+            <button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="newIntradayFromWeekly(${w.id})">⚡ NEW INTRADAY</button>
+            <button class="btn-ghost" style="font-size:8px" onclick="openEditWeeklyModal(${w.id})">✏ EDIT</button>
+            <button class="btn-ghost" style="font-size:8px;color:var(--muted)" onclick="closeWeeklyBias(${w.id})">CLOSE BIAS</button>
+          `:`<button class="btn-ghost" style="font-size:8px" onclick="reopenWeeklyBias(${w.id})">REOPEN</button>`}
+          <button class="del-btn" onclick="deleteWeeklyBias(${w.id})">DEL</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function deleteWbScreenshot(wId, ssIdx){
+  if(!confirm('Delete this screenshot?')) return;
+  const w=S.weeklies.find(w=>w.id===wId); if(!w) return;
+  w.screenshots.splice(ssIdx,1);
+  saveWeeklies(); renderWeekly();
+}
+
+function setWeeklyTagFilter(tag){ S.weeklyTagFilter=tag; renderWeekly(); }
+function toggleWeeklyShowClosed(){ S.weeklyShowClosed=!S.weeklyShowClosed; renderWeekly(); }
+
+// ════════════════════════════════════════════════
+// INTRADAY CHECKLIST
+// ════════════════════════════════════════════════
+function refreshIntraWeeklyDropdown(){
+  const sel = document.getElementById('intraWeeklyLink'); if(!sel) return;
+  const open = S.weeklies.filter(w=>w.status==='open');
+  sel.innerHTML = '<option value="">— Select active weekly bias (optional) —</option>'
+    + open.map(w=>`<option value="${w.id}">${w.pair} — ${w.bias} (${w.date})</option>`).join('');
+  // Also update pair suggestions
+  const dl = document.getElementById('intraPairSuggestions'); if(!dl) return;
+  dl.innerHTML = open.map(w=>`<option value="${w.pair}">`).join('');
+}
+
+function onIntraWeeklyLink(){
+  const sel = document.getElementById('intraWeeklyLink');
+  const id = parseInt(sel.value);
+  const bar = document.getElementById('intraContextBar');
+  if(!id || isNaN(id)){ if(bar) bar.style.display='none'; return; }
+  const w = S.weeklies.find(w=>w.id===id);
+  if(!w){ if(bar) bar.style.display='none'; return; }
+  if(bar) bar.style.display='flex';
+  document.getElementById('intraCtxPair').textContent = w.pair;
+  document.getElementById('intraCtxBias').textContent = w.bias;
+  document.getElementById('intraCtxNotes').textContent = w.notes ? w.notes.substring(0,60)+(w.notes.length>60?'…':'') : '—';
+  // Auto-fill pair
+  const pairIn = document.getElementById('intraPair');
+  if(pairIn && !pairIn.value) pairIn.value = w.pair;
+  updateIntraScoreStrip();
+}
+
+function newIntradayFromWeekly(weeklyId){
+  // Navigate to intraday page and pre-select the weekly
+  navTo('intraday');
+  setTimeout(()=>{
+    const sel = document.getElementById('intraWeeklyLink');
+    if(sel){ sel.value=weeklyId; onIntraWeeklyLink(); }
+  }, 100);
+}
+
+// Intraday scoring
+function calcIntraScore(){
+  let t=0;
+  INTRA_CARDS.flatMap(c=>c.questions).forEach(q=>{ const a=S.intraAnswers[q.id]; if(a&&a.pts!==null) t+=a.pts; });
+  return Math.min(t,10);
+}
+function countIntraAnswered(){ return INTRA_CARDS.flatMap(c=>c.questions).filter(q=>S.intraAnswers[q.id]&&S.intraAnswers[q.id].val!=='').length; }
+function totalIntraQs(){ return INTRA_CARDS.flatMap(c=>c.questions).length; }
+function getIntraBias(){
+  // Based on weekly link or first question alignment
+  const sel = document.getElementById('intraWeeklyLink');
+  const id = sel ? parseInt(sel.value) : null;
+  if(id && !isNaN(id)){
+    const w = S.weeklies.find(w=>w.id===id);
+    if(w) return w.bias;
+  }
+  const a = S.intraAnswers['iq_htf_align'];
+  if(!a) return null;
+  return a.val==='ia_conflict'?'COUNTER':'ALIGNED';
+}
+
+function updateIntraScoreStrip(){
+  const score=calcIntraScore(), ans=countIntraAnswered(), tot=totalIntraQs(), hasAll=ans===tot;
+  const grade=hasAll?getGrade(score):null;
+  const sn=document.getElementById('intraScoreNum'), sg=document.getElementById('intraScoreGrade');
+  const bf=document.getElementById('intraBarFill'), sv=document.getElementById('intraVerdict'), pl=document.getElementById('intraProgLabel');
+  if(sn) sn.textContent=hasAll?score.toFixed(1):'—';
+  if(sg){ sg.textContent=grade||'NO SCORE'; sg.style.background=!hasAll?'rgba(255,255,255,.15)':score>=9?'#00c853':score>=8?'#2e7d32':score>=7?'#f57f17':score>=5?'#e65100':'#b71c1c';}
+  if(bf){ const pct=hasAll?(score/10*100):0; bf.style.width=pct+'%'; bf.style.background=!hasAll?'rgba(255,255,255,.3)':score>=8?'#69f0ae':score>=6?'#ffd740':'#ff5252'; }
+  const vmap={'A+':'✦ A+ — Execute.','A':'✓ A — Trade it.','B':'△ B — Standard size.','C':'○ C — Marginal.','No Trade':'✕ NO TRADE'};
+  if(sv) sv.textContent=grade?vmap[grade]:'Answer intraday checklist';
+  if(pl) pl.textContent=ans+'/'+tot;
+  // update direction
+  const bias=getIntraBias(), el=document.getElementById('intraDirAuto');
+  if(el){ el.textContent=bias||'—'; el.className='auto-field'+(bias==='BULLISH'?' bull-f':bias==='BEARISH'?' bear-f':''); }
+}
+
+function onIntraDropChange(qid, sel){
+  const opt=sel.options[sel.selectedIndex], pts=parseFloat(opt.dataset.pts), val=opt.value;
+  if(val===''){delete S.intraAnswers[qid];}else{S.intraAnswers[qid]={pts:isNaN(pts)?0:pts,val,label:opt.text};}
+  sel.className='drop-select';
+  if(val!==''){if(pts>=2)sel.classList.add('sel-good');else if(pts>=1)sel.classList.add('sel-ok');else sel.classList.add('sel-bad');}
+  updateIntraScoreStrip(); renderIntraBiasCards(); renderIntraEntrySection();
+}
+
+function renderIntraBiasCards(){
+  const c=document.getElementById('intraBiasCards'); if(!c) return;
+  c.innerHTML='';
+  INTRA_CARDS.forEach(card=>{
+    const cpts=card.questions.reduce((s,q)=>{const a=S.intraAnswers[q.id];return s+(a&&a.pts!==null?a.pts:0);},0);
+    const allAns=card.questions.every(q=>S.intraAnswers[q.id]&&S.intraAnswers[q.id].val!=='');
+    const st=!allAns?'':(cpts>=card.maxPts*0.7?'scored':cpts>=card.maxPts*0.4?'scored-neutral':'scored-bad');
+    const cardKillOn=(card.kills||[]).some(k=>S.intraKills[k.id]);
+    const div=document.createElement('div');
+    div.className='score-card '+(cardKillOn?'scored-bad':st);
+    div.style.borderColor = cardKillOn?'var(--bear)':st==='scored'?'#1b5e20':st==='scored-neutral'?'#f57f17':st==='scored-bad'?'var(--bear)':'';
+    const killsHtml=(card.kills||[]).length>0?`
+      <div style="padding:8px 12px;border-bottom:1px solid var(--cream)">
+        ${(card.kills||[]).map(k=>`
+          <div class="kill-item ${S.intraKills[k.id]?'on':''}" onclick="toggleIntraKill('${k.id}');renderIntraBiasCards();renderIntraEntrySection();" style="padding:6px 4px;border-bottom:none">
+            <div class="kbox">${S.intraKills[k.id]?'✕':''}</div>
+            <div class="kill-text" style="font-size:11px">⛔ ${k.text}</div>
+          </div>`).join('')}
+      </div>`:'';
+    div.innerHTML=`<div class="card-head" style="background:#e8eaf6">
+      <div class="card-num" style="background:#283593">${card.num}</div>
+      <div class="card-title-wrap"><div class="card-title">${card.title}</div><div class="card-tf">${card.tf}</div></div>
+      <div class="card-pts-badge">${allAns?cpts.toFixed(1)+'/'+card.maxPts:'—/'+card.maxPts} pts</div>
+    </div>
+    ${killsHtml}
+    ${card.questions.map(q=>{
+      const ans=S.intraAnswers[q.id], sv=ans?ans.val:'';
+      return`<div class="drop-row">
+        <div class="drop-label">${q.label}</div>
+        <div class="drop-hint">↳ ${q.hint}</div>
+        <select class="drop-select ${sv&&ans.pts>=2?'sel-good':sv&&ans.pts>=1?'sel-ok':sv?'sel-bad':''}" onchange="onIntraDropChange('${q.id}',this)">
+          ${q.options.map(o=>`<option value="${o.val}" data-pts="${o.pts}" ${sv===o.val?'selected':''}>${o.label}</option>`).join('')}
+        </select>
+        ${sv?`<div class="drop-pts ${ans.pts>=2?'pts-good':ans.pts>=1?'pts-ok':'pts-bad'}">${ans.pts} pts</div>`:''}
+      </div>`;
+    }).join('')}`;
+    c.appendChild(div);
+  });
+
+  // Summary
+  const score=calcIntraScore(), ans=countIntraAnswered(), tot=totalIntraQs(), hasAll=ans===tot;
+  const grade=hasAll?getGrade(score):null;
+  const sd=document.createElement('div');
+  sd.className='score-card '+(hasAll&&grade&&grade!=='No Trade'?'scored':hasAll?'scored-bad':'');
+  sd.style.borderColor=hasAll&&grade&&grade!=='No Trade'?'#1b5e20':hasAll?'var(--bear)':'';
+  sd.innerHTML=`<div class="card-head" style="background:#e8eaf6">
+    <div class="card-num" style="background:${hasAll&&grade&&grade!=='No Trade'?'#1b5e20':'var(--muted)'}">∑</div>
+    <div class="card-title-wrap"><div class="card-title">Intraday Score</div><div class="card-tf">All timeframes</div></div>
+    <div class="card-pts-badge">${hasAll?score.toFixed(1)+'/10 — '+(grade||''):'Answer all questions'}</div>
+  </div>
+  <table class="score-table">
+    ${INTRA_CARDS.map(card=>{const pts=card.questions.reduce((s,q)=>{const a=S.intraAnswers[q.id];return s+(a&&a.pts?a.pts:0);},0);return`<tr><td class="st-label">${card.title}</td><td class="st-val">${pts.toFixed(1)}/${card.maxPts}</td></tr>`;}).join('')}
+    <tr style="border-top:1.5px solid var(--border)"><td class="st-label" style="font-weight:700">TOTAL</td><td class="st-val" style="font-size:14px">${hasAll?score.toFixed(1)+'/10':'—'}</td></tr>
+    <tr><td class="st-label">Grade</td><td class="st-val">${grade?`<span class="pill pill-${gradeClass(grade)}">${grade}</span>`:'—'}</td></tr>
+  </table>`;
+  c.appendChild(sd);
+}
+
+function renderIntraEntrySection(){
+  const c=document.getElementById('intraEntrySection'); if(!c) return;
+  const killOn=Object.values(S.intraKills).some(v=>v);
+  const score=calcIntraScore(), ans=countIntraAnswered()===totalIntraQs(), grade=ans?getGrade(score):null;
+  let icon,title,msg,bc;
+  if(killOn){icon='⛔';title='NO TRADE — KILL CONDITION ACTIVE';msg='A kill condition is triggered above.';bc='var(--bear)';}
+  else if(grade==='No Trade'){icon='✕';title='NO TRADE — SCORE TOO LOW';msg='Intraday score below 5. Do not force.';bc='var(--bear)';}
+  else if(grade==='C'){icon='○';title='C SETUP — MARGINAL';msg='Weak intraday confluence. 50% size or skip.';bc='#d4a070';}
+  else if(grade==='B'){icon='△';title='B SETUP — STANDARD SIZE';msg='Good intraday entry. Execute plan.';bc='var(--gold)';}
+  else if(grade==='A'||grade==='A+'){icon='✓';title=(grade==='A+'?'✦ ':'')+'A'+(grade==='A+'?'+':'')+' INTRADAY — EXECUTE';msg='Strong intraday entry. Aligned with weekly bias.';bc='var(--bull)';}
+  else{icon='📋';title='INCOMPLETE';msg='Answer the intraday checklist above.';bc='var(--border)';}
+  c.innerHTML=`<div class="verdict" style="border-color:${bc}"><div class="v-icon">${icon}</div><div class="v-body"><div class="v-title" style="color:${bc}">${title}</div><div class="v-msg">${msg}</div></div></div>`;
+}
+
+function toggleIntraKill(key){ S.intraKills[key]=!S.intraKills[key]; }
+function setIntraType(type, el){
+  S.intraType=type;
+  document.getElementById('intraTypeBtns').querySelectorAll('.seg-btn').forEach(b=>b.className=b.className.replace(/sel-\w+/g,'').trim());
+  el.classList.add(type==='BUY'?'sel-bull':'sel-bear');
+}
+
+function fullResetIntraday(){
+  if(!confirm('Clear all intraday checklist fields?')) return;
+  S.intraAnswers={}; S.intraKills={}; S.intraSS=[]; S.intraType='BUY';
+  S.intraTags=['intraday'];
+  document.getElementById('intraPair').value='';
+  document.getElementById('intraDate').value=new Date().toISOString().split('T')[0];
+  document.getElementById('intraSession').selectedIndex=0;
+  document.getElementById('intraNotes').value='';
+  document.getElementById('intraEntry').value='';
+  document.getElementById('intraSL').value='';
+  document.getElementById('intraTP').value='';
+  document.getElementById('intraSsGrid').innerHTML='';
+  document.getElementById('intraWeeklyLink').value='';
+  document.getElementById('intraContextBar').style.display='none';
+  const wrap=document.getElementById('intraTagWrap');
+  if(wrap){ wrap.querySelectorAll('.tag.rm').forEach(el=>el.remove()); renderTagsInWrap('intraTagWrap', S.intraTags, 'intra'); }
+  // Reset BUY button
+  document.getElementById('intraTypeBtns').querySelectorAll('.seg-btn').forEach((b,i)=>{b.className=b.className.replace(/sel-\w+/g,'').trim();if(i===0)b.classList.add('sel-bull');});
+  updateIntraScoreStrip(); renderIntraBiasCards(); renderIntraEntrySection();
+}
+
+function saveIntradayIdea(){
+  harvestTags('intra');
+  const pair=document.getElementById('intraPair').value.trim();
+  const date=document.getElementById('intraDate').value;
+  if(!pair||!date){alert('Pair and date are required.');return;}
+  const score=calcIntraScore(), ans=countIntraAnswered()===totalIntraQs(), grade=ans?getGrade(score):'N/A';
+  const bias=getIntraBias()||'NEUTRAL';
+  const weeklyLinkId = parseInt(document.getElementById('intraWeeklyLink').value)||null;
+
+  const trade={
+    id:Date.now(), status:'open', isIntraday:true, weeklyLinkId,
+    date, pair,
+    session:document.getElementById('intraSession').value,
+    tradeType:S.intraType||'BUY',
+    score:ans?score:null, grade:ans?grade:'N/A',
+    biasSet:bias, biasPlayed:'', biasMatch:'', result:'',
+    tp2r:'N/A', tp15r:'N/A',
+    ideaNotes:document.getElementById('intraNotes').value.trim(),
+    updateNotes:'', closeNotes:'', followupNotes:'',
+    entryPrice:parseFloat(document.getElementById('intraEntry').value)||null,
+    closePrice:null,
+    slPrice:parseFloat(document.getElementById('intraSL').value)||null,
+    tpPrice:parseFloat(document.getElementById('intraTP').value)||null,
+    openTime:new Date().toISOString(), closeTime:null,
+    screenshots:[...S.intraSS], eodScreenshots:[], followupScreenshots:[],
+    checklistAnswers:{...S.intraAnswers},
+    checklistKills:{...S.intraKills},
+    tags:[...S.intraTags],
+  };
+  S.trades.unshift(trade); saveTrade(trade);
+
+  // Reset
+  fullResetIntraday();
+  updateOpenBadge(); updateIntradayBadge();
+  alert('⚡ Intraday idea logged for '+pair+' on '+date+'.\nGrade: '+grade+(ans?' · Score: '+score.toFixed(1):'')+' \n\nFind it in Open Trades.');
+  navTo('open');
+}
+
+function updateIntradayBadge(){
+  const n=S.trades.filter(t=>t.isIntraday&&t.status==='open').length;
+  const b=document.getElementById('intradayBadge');
+  if(b){ b.textContent=n; b.style.display=n>0?'':'none'; }
+  const ts=document.getElementById('intradayTileSub');
+  if(ts) ts.textContent=n>0?n+' active idea'+(n>1?'s':''):'Day trade setups';
+}
+
+// ── PATCH navTo to handle new pages ──
+const _origNavTo = navTo;
+navTo = function(page){
+  closeSidebar();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+
+  const pageEl = document.getElementById('page-'+page);
+  const navEl = document.getElementById('navitem-'+page);
+  if(pageEl) pageEl.classList.add('active');
+  if(navEl) navEl.classList.add('active');
+  const contentEl = document.getElementById('content');
+  if(contentEl) contentEl.scrollTop=0;
+  S.currentPage=page;
+
+  if(page==='home') renderDashboard();
+  if(page==='idea'){
+    renderBiasCards(); renderEntrySection(); updateScoreStrip();
+    const editMode=S.checklistMode==='edit';
+    const t=editMode&&S.checklistEditId?S.trades.find(t=>t.id===S.checklistEditId):null;
+    const secHead=document.querySelector('#page-idea .sec-head h2');
+    if(secHead) secHead.textContent=editMode?'UPDATE CHECKLIST':'NEW TRADE IDEA';
+    const primaryBtn=document.getElementById('logPrimaryBtn');
+    if(primaryBtn){
+      if(editMode){primaryBtn.textContent='💾 SAVE CHECKLIST UPDATE';primaryBtn.onclick=saveChecklistUpdate;}
+      else{primaryBtn.textContent='💡 LOG AS OPEN TRADE';primaryBtn.onclick=saveIdeaAsOpen;}
+    }
+    const pairFld=document.getElementById('ideaPair'), dateFld=document.getElementById('ideaDate'), sessFld=document.getElementById('ideaSession');
+    if(editMode&&t){
+      if(pairFld){pairFld.value=t.pair;pairFld.disabled=true;pairFld.style.background='var(--cream)';}
+      if(dateFld){dateFld.value=t.date;dateFld.disabled=true;dateFld.style.background='var(--cream)';}
+      if(sessFld){sessFld.value=t.session||'London';sessFld.disabled=true;sessFld.style.background='var(--cream)';}
+      setTradeType(t.tradeType||'BUY');
+    } else {
+      if(pairFld){pairFld.disabled=false;pairFld.style.background='';}
+      if(dateFld){dateFld.disabled=false;dateFld.style.background='';}
+      if(sessFld){sessFld.disabled=false;sessFld.style.background='';}
+    }
+    // Render idea tags
+    renderTagsInWrap('ideaTagWrap', S.ideaTags, 'idea');
+  }
+  if(page==='weekly'){ renderWeekly(); }
+  if(page==='intraday'){ refreshIntraWeeklyDropdown(); renderIntraBiasCards(); renderIntraEntrySection(); updateIntraScoreStrip(); renderTagsInWrap('intraTagWrap', S.intraTags, 'intra'); }
+  if(page==='open') renderOpen();
+  if(page==='closed') renderClosed();
+};
+
+// ── PATCH saveIdeaAsOpen to include tags ──
+const _origSaveIdeaAsOpen = saveIdeaAsOpen;
+saveIdeaAsOpen = function(){
+  harvestTags('idea');
+  // Find the trade that will be created - patch S before calling original
+  const _origUnshift = Array.prototype.unshift;
+  // We do it manually since we can't easily hook
+  const pair=document.getElementById('ideaPair').value.trim();
+  const date=document.getElementById('ideaDate').value;
+  if(!pair||!date){alert('Pair and date are required.');return;}
+  const score=calcScore(), ans=countAnswered()===totalQs(), grade=ans?getGrade(score):'N/A', bias=getBias()||'NEUTRAL';
+  const trade={
+    id:Date.now(), status:'open', date, pair,
+    session:document.getElementById('ideaSession').value,
+    tradeType:S.tradeType||'BUY',
+    score:ans?score:null, grade:ans?grade:'N/A',
+    biasSet:bias, biasPlayed:'', biasMatch:'', result:'',
+    tp2r:'N/A', tp15r:'N/A',
+    ideaNotes:document.getElementById('ideaNotes').value.trim(),
+    updateNotes:'', closeNotes:'', followupNotes:'',
+    entryPrice:null, closePrice:null, slPrice:null,
+    openTime:new Date().toISOString(), closeTime:null,
+    screenshots:[...S.ideaSS], eodScreenshots:[], followupScreenshots:[],
+    checklistAnswers:{...S.answers}, checklistKills:{...S.kills},
+    tags:[...S.ideaTags],
+  };
+  S.trades.unshift(trade); saveTrade(trade);
+  S.answers={}; S.kills={}; S.killOpen=false; S.ideaSS=[]; S.ideaTags=[];
+  document.getElementById('ideaPair').value='';
+  document.getElementById('ideaDate').value=new Date().toISOString().split('T')[0];
+  document.getElementById('ideaSession').selectedIndex=0;
+  document.getElementById('ideaNotes').value='';
+  document.getElementById('ideaSsGrid').innerHTML='';
+  const wt=document.getElementById('ideaTagWrap');
+  if(wt){ wt.querySelectorAll('.tag.rm').forEach(el=>el.remove()); }
+  const vd=document.getElementById('ideaVerdict'); if(vd) vd.style.display='none';
+  updateScoreStrip(); renderBiasCards(); renderEntrySection();
+  updateOpenBadge();
+  alert('✓ Trade idea logged for '+pair+' on '+date+'.\nGrade: '+grade+(ans?' · Score: '+score.toFixed(1):'')+' \n\nFind it in Open Trades.');
+  navTo('open');
+};
+
+// ── PATCH renderOpen to show tags and intraday badge ──
+const _origRenderOpen = renderOpen;
+renderOpen = function(){
+  const open=S.trades.filter(t=>t.status==='open');
+  const c=document.getElementById('openContainer'); if(!c) return;
+  updateOpenBadge(); updateIntradayBadge();
+  if(open.length===0){c.innerHTML='<div class="empty-state">No open trade ideas yet.</div>';return;}
+
+  // Group: weekly swing, intraday, standard
+  const swingTrades = open.filter(t=>!t.isIntraday && (t.tags||[]).some(tag=>tag==='weekly'));
+  const intraTrades = open.filter(t=>t.isIntraday);
+  const standardTrades = open.filter(t=>!t.isIntraday && !(t.tags||[]).some(tag=>tag==='weekly'));
+
+  function tradeCard(t){
+    const gc=gradeClass(t.grade);
+    const allSS=[...(t.screenshots||[]),...(t.eodScreenshots||[])];
+    const ssHtml=allSS.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('');
+    const tagHtml=(t.tags||[]).map(tag=>`<span class="tag ${tag==='weekly'?'tag-weekly':tag==='intraday'?'tag-intraday':'tag-custom'}">#${tag}</span>`).join('');
+    const borderColor = t.isIntraday?'#9fa8da':(t.tags||[]).includes('weekly')?'#9fa8da':'var(--gold)';
+    const headBg = t.isIntraday?'#e8eaf6':(t.tags||[]).includes('weekly')?'#e8eaf6':'var(--gold-lt)';
+    const pairColor = t.isIntraday?'#3949ab':(t.tags||[]).includes('weekly')?'#3949ab':'var(--gold)';
+    return `<div class="otc" style="border-color:${borderColor}">
+      <div class="otc-head" style="background:${headBg};border-bottom-color:${borderColor}">
+        <div>
+          <div class="otc-pair" style="color:${pairColor}">${t.pair} ${t.isIntraday?'<span style="font-size:9px;background:#283593;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">INTRA</span>':''}</div>
+          <div class="otc-meta">${t.date} · ${t.session||''} · <span class="time-badge">${new Date(t.openTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>
+          <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${tagHtml}</div>
+        </div>
+        ${t.score!==null?`<div class="otc-score"><span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span></div>`:''}
+      </div>
+      <div class="otc-body">
+        ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${t.ideaNotes}</div>`:''}
+        ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${t.updateNotes}</div>`:''}
+        <div class="otc-prices">
+          <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
+          <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
+          <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen(${t.id},'closePrice',this.value)"></div>
+        </div>
+        ${allSS.length>0?`<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`:''}
+        <div class="otc-actions">
+          <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
+          <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT</button>
+          <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 CHECKLIST</button>
+          <button class="btn-ghost" onclick="addSsToOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">+ SHOT</button>
+          <button class="del-btn" onclick="deleteOpenTrade(${t.id})">DEL</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  let html='';
+  if(swingTrades.length>0) html+=`<div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:#3949ab;text-transform:uppercase;margin-bottom:6px;padding:4px 0;border-bottom:1px solid #9fa8da">📅 SWING / WEEKLY TRADES</div>${swingTrades.map(tradeCard).join('')}`;
+  if(intraTrades.length>0) html+=`<div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:#1b5e20;text-transform:uppercase;margin-bottom:6px;margin-top:${swingTrades.length>0?'14':'0'}px;padding:4px 0;border-bottom:1px solid #a5d6a7">⚡ INTRADAY IDEAS</div>${intraTrades.map(tradeCard).join('')}`;
+  if(standardTrades.length>0) html+=`<div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;margin-top:${(swingTrades.length||intraTrades.length)?'14':'0'}px;padding:4px 0;border-bottom:1px solid var(--border)">📋 STANDARD TRADES</div>${standardTrades.map(tradeCard).join('')}`;
+  c.innerHTML=html;
+};
+
+// ── PATCH handleFileSelect for new contexts ──
+const _origHandleFileSelect = handleFileSelect;
+handleFileSelect = function(e, ctx){
+  Array.from(e.target.files).forEach(f=>{
+    const r=new FileReader();
+    r.onload=ev=>{
+      const ss={id:Date.now()+'_'+Math.random().toString(36).slice(2), name:f.name, dataUrl:ev.target.result,
+        label:ctx==='idea'?'Setup Chart':ctx==='cm'?'EOD Chart':ctx==='eoi'?'Update Chart':ctx==='ec'?'Follow-up':ctx==='wb'?'Weekly Chart':ctx==='wbn'?'Update Chart':ctx==='intra'?'Intraday Chart':'Chart',
+        at:new Date().toLocaleString()};
+      if(ctx==='idea'){S.ideaSS.push(ss);renderSsGrid('ideaSsGrid',S.ideaSS,'idea');}
+      else if(ctx==='cm'){S.cmSS.push(ss);renderSsGrid('cmSsGrid',S.cmSS,'cm');}
+      else if(ctx==='eoi'){S.eoiSS.push(ss);renderSsGrid('eoiSsGrid',S.eoiSS,'eoi');}
+      else if(ctx==='ec'){S.ecSS.push(ss);renderSsGrid('ecSsGrid',S.ecSS,'ec');}
+      else if(ctx==='wb'){S.wbSS.push(ss);renderSsGrid('wbSsGrid',S.wbSS,'wb');}
+      else if(ctx==='wbn'){S.wbnSS.push(ss);renderSsGrid('wbNSsGrid',S.wbnSS,'wbn');}
+      else if(ctx==='intra'){S.intraSS.push(ss);renderSsGrid('intraSsGrid',S.intraSS,'intra');}
+    };
+    r.readAsDataURL(f);
+  });
+  e.target.value='';
+};
+
+// ── PATCH renderDashboard to include tag stats and intraday info ──
+const _origRenderDashboard = renderDashboard;
+renderDashboard = function(){
+  _origRenderDashboard();
+  // Add weekly and intraday counts to home
+  updateWeeklyBadge(); updateIntradayBadge();
+  // Update weekly tile
+  const wt=document.getElementById('weeklyTileSub');
+  const activeW=S.weeklies.filter(w=>w.status==='open').length;
+  if(wt) wt.textContent=activeW>0?activeW+' active bias'+(activeW>1?'es':''):'Swing journals';
+};
+
+// ── INIT new state ──
+updateWeeklyBadge();
+updateIntradayBadge();
+refreshIntraWeeklyDropdown();
+document.getElementById('intraDate').value=new Date().toISOString().split('T')[0];
+// Render initial intraday tags
+setTimeout(()=>{ renderTagsInWrap('intraTagWrap', S.intraTags, 'intra'); }, 100);
+
+// ════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════
+document.getElementById('ideaDate').value=new Date().toISOString().split('T')[0];
+// renderDashboard() called after login via loadAllData()
+// Data is synced via Supabase — see loadAllData()
+</script>
+</body>
+</html>
