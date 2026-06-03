@@ -3820,14 +3820,14 @@ function renderMiniCalendar(){
 
   // Show current month + next 3 months
   let months = [];
-  for(let i=0; i<4; i++){
+  for(let i=0; i<3; i++){
     const mo = (curMo+i)%12;
     const moYr = yr + Math.floor((curMo+i)/12);
     months.push(buildMonthHtml(mo, moYr));
   }
 
   el.innerHTML=`
-    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">${yr} CALENDAR · ${total - doy} DAYS REMAINING</div>
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">${yr} CALENDAR · ${total - doy} DAYS REMAINING (${doy}/${total})</div>
     <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;">
       ${months.join('')}
     </div>`;
