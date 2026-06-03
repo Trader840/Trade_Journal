@@ -1412,6 +1412,39 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
   <img id="lbImg" src="" alt="">
 </div>
 
+<!-- ══ INTRADAY IDEA LINK MODAL ══ -->
+<div class="modal-overlay" id="intraLinkModal">
+<div class="modal" style="max-width:520px">
+  <div class="modal-head" style="background:#e8eaf6;border-bottom-color:#9fa8da">
+    <h3 id="intraLinkTitle" style="color:#283593">⚡ INTRADAY IDEA</h3>
+    <button class="modal-close" onclick="document.getElementById('intraLinkModal').classList.remove('open')">✕</button>
+  </div>
+  <div class="modal-body">
+    <!-- Context bar showing the parent trade -->
+    <div id="intraLinkCtxBar" style="background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:5px;padding:10px 12px;margin-bottom:2px">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:4px">Parent Trade Idea</div>
+      <div id="intraLinkCtxText" style="font-size:13px;font-weight:600;color:var(--ink)">—</div>
+    </div>
+
+    <!-- Existing intraday ideas for same pair -->
+    <div id="intraLinkExistingSection" style="margin-top:4px">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;margin-top:8px;">EXISTING INTRADAY IDEAS — SAME PAIR</div>
+      <div id="intraLinkExistingList">
+        <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);text-align:center;padding:12px;">No unlinked intraday ideas found for this pair.</div>
+      </div>
+    </div>
+
+    <div style="border-top:1.5px solid var(--border);margin:10px 0 6px;"></div>
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">OR — CREATE NEW INTRADAY IDEA</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:6px;">Go to Intraday Ideas page with this trade pre-linked.</p>
+  </div>
+  <div class="modal-footer" style="background:#e8eaf6">
+    <button class="btn-ghost" onclick="document.getElementById('intraLinkModal').classList.remove('open')">CANCEL</button>
+    <button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20" id="intraLinkNewBtn" onclick="goNewIntradayForTrade()">⚡ NEW INTRADAY IDEA →</button>
+  </div>
+</div>
+</div>
+
 <script>
 // ════════════════════════════════════════════════
 // SCORING SCHEMA
@@ -2129,7 +2162,8 @@ function renderOpen(){
     const biasColor=t.biasSet==='BULLISH'?'var(--bull)':t.biasSet==='BEARISH'?'var(--bear)':'var(--muted)';
     const biasBg=t.biasSet==='BULLISH'?'var(--bull-lt)':t.biasSet==='BEARISH'?'var(--bear-lt)':'var(--cream)';
     const biasBorder=t.biasSet==='BULLISH'?'var(--bull)':t.biasSet==='BEARISH'?'var(--bear)':'var(--border)';
-    const biasPill=t.biasSet?`<span style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px;border:1px solid ${biasBorder};background:${biasBg};color:${biasColor};white-space:nowrap;">DAILY BIAS: ${t.biasSet}</span>`:'';
+    // Find linked intraday ideas for this trade
+    const linkedIntra=(S.trades||[]).filter(it=>it.isIntraday&&it.weeklyLinkId===t.id&&it.status==='open');
     return`<div class="otc">
       <div class="otc-head">
         <div>
@@ -2138,9 +2172,12 @@ function renderOpen(){
             · <span class="time-badge">${new Date(t.openTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
           </div>
         </div>
-        <div class="otc-score" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+        <div class="otc-score" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          ${t.biasSet?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+            <span style="font-family:'Azeret Mono',monospace;font-size:7px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">Daily Bias</span>
+            <span style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;padding:3px 10px;border-radius:3px;border:1.5px solid ${biasBorder};background:${biasBg};color:${biasColor};white-space:nowrap;">${t.biasSet==='BULLISH'?'▲ ':t.biasSet==='BEARISH'?'▼ ':''}${t.biasSet}</span>
+          </div>`:''}
           ${t.score!==null?`<span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span>`:''}
-          ${biasPill}
         </div>
       </div>
       <div class="otc-body">
@@ -2152,9 +2189,29 @@ function renderOpen(){
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
           <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen(${t.id},'closePrice',this.value)"></div>
         </div>
+        ${linkedIntra.length>0?`<div style="margin-bottom:10px;background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:5px;overflow:hidden;">
+          <div style="padding:6px 10px;background:#c5cae9;border-bottom:1px solid #9fa8da;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;">⚡</span>
+            <span style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#283593;text-transform:uppercase;">Linked Intraday Ideas (${linkedIntra.length})</span>
+          </div>
+          ${linkedIntra.map(it=>{
+            const itGc=gradeClass(it.grade);
+            return`<div style="padding:8px 10px;border-bottom:1px solid #c5cae9;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;color:#283593;">${it.pair} · ${it.session||''} · ${it.date}</div>
+                <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;">
+                  ${it.score!==null?`<span class="pill pill-${itGc}" style="font-size:8px;">${it.grade} · ${it.score.toFixed(1)}/10</span>`:''}
+                  ${it.entryPrice?` Entry: ${it.entryPrice}`:''}${it.slPrice?' · SL: '+it.slPrice:''}${it.tpPrice?' · TP: '+it.tpPrice:''}
+                </div>
+              </div>
+              <button onclick="pullPricesFromIntra(${t.id},${it.id})" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:4px 10px;border:1.5px solid #283593;background:#283593;color:#fff;border-radius:3px;cursor:pointer;white-space:nowrap;flex-shrink:0;">↓ USE PRICES</button>
+            </div>`;
+          }).join('')}
+        </div>`:''}
         ${allSS.length>0?`<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`:''}
         <div class="otc-actions">
           <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
+          <button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="openIntraForTrade(${t.id})">⚡ INTRADAY IDEA</button>
           <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openTradeNoteModal(${t.id})">+ ADD NOTE</button>
           <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT / UPDATE</button>
           <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 UPDATE CHECKLIST</button>
@@ -2189,6 +2246,95 @@ function addSsToOpenTrade(id){
 function deleteOpenTrade(id){
   if(!confirm('Delete this trade idea? Cannot be undone.')) return;
   S.trades=S.trades.filter(t=>t.id!==id); saveTrades(); renderOpen(); renderDashboard();
+}
+
+// ════════════════════════════════════════════════
+// INTRADAY LINK FOR OPEN TRADE
+// ════════════════════════════════════════════════
+S.intraLinkTradeId = null;
+
+function openIntraForTrade(tradeId){
+  const t = S.trades.find(t=>t.id===tradeId); if(!t) return;
+  S.intraLinkTradeId = tradeId;
+
+  // Set title and context
+  document.getElementById('intraLinkTitle').textContent = '⚡ INTRADAY IDEA — '+t.pair;
+  document.getElementById('intraLinkCtxText').textContent = t.pair + ' · ' + t.date + ' · ' + (t.session||'') + (t.grade&&t.grade!=='N/A'?' · '+t.grade:'');
+
+  // Find intraday ideas for same pair (same or nearby date, not already linked to this trade)
+  const allIntra = (S.trades||[]).filter(it =>
+    it.isIntraday &&
+    it.pair.trim().toUpperCase() === t.pair.trim().toUpperCase() &&
+    it.status === 'open'
+  );
+
+  const listEl = document.getElementById('intraLinkExistingList');
+  if(allIntra.length === 0){
+    listEl.innerHTML = `<div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);text-align:center;padding:12px;">No intraday ideas found for ${t.pair}.</div>`;
+  } else {
+    listEl.innerHTML = allIntra.map(it => {
+      const itGc = gradeClass(it.grade);
+      const alreadyLinked = it.weeklyLinkId === tradeId;
+      return `<div style="padding:10px 12px;border:1.5px solid ${alreadyLinked?'#1b5e20':'#9fa8da'};border-radius:5px;background:${alreadyLinked?'#e8f5e9':'#f0f2ff'};margin-bottom:6px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;color:#283593;">${it.pair} · ${it.session||''} · ${it.date}${alreadyLinked?' <span style="color:#1b5e20;font-size:8px;">✓ LINKED</span>':''}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+              ${it.score!==null?`<span class="pill pill-${itGc}" style="font-size:8px;margin-right:4px;">${it.grade} · ${it.score.toFixed(1)}/10</span>`:''}
+              ${it.entryPrice?`Entry: <b>${it.entryPrice}</b>`:''} ${it.slPrice?`· SL: <b>${it.slPrice}</b>`:''} ${it.tpPrice?`· TP: <b>${it.tpPrice}</b>`:''}
+            </div>
+            ${it.ideaNotes?`<div style="font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;">${it.ideaNotes.replace(/<[^>]+>/g,'').substring(0,80)}</div>`:''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+            ${!alreadyLinked?`<button onclick="linkAndPullIntra(${tradeId},${it.id})" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #283593;background:#283593;color:#fff;border-radius:3px;cursor:pointer;white-space:nowrap;">LINK + USE PRICES</button>`:''}
+            ${(it.entryPrice||it.slPrice)?`<button onclick="pullPricesFromIntra(${tradeId},${it.id})" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:5px 10px;border:1.5px solid #9fa8da;background:transparent;color:#283593;border-radius:3px;cursor:pointer;white-space:nowrap;">↓ USE PRICES ONLY</button>`:''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('intraLinkModal').classList.add('open');
+}
+
+function linkAndPullIntra(tradeId, intraId){
+  // Link the intraday to the parent trade
+  const it = S.trades.find(t=>t.id===intraId); if(!it) return;
+  it.weeklyLinkId = tradeId;
+  saveTrade(it);
+  // Pull prices
+  pullPricesFromIntra(tradeId, intraId);
+}
+
+function pullPricesFromIntra(tradeId, intraId){
+  const t = S.trades.find(t=>t.id===tradeId); if(!t) return;
+  const it = S.trades.find(t=>t.id===intraId); if(!it) return;
+  let updated = false;
+  if(it.entryPrice!=null){ t.entryPrice=it.entryPrice; updated=true; }
+  if(it.slPrice!=null){ t.slPrice=it.slPrice; updated=true; }
+  if(it.tpPrice!=null){ t.tpPrice=it.tpPrice; updated=true; }
+  if(updated){
+    saveTrade(t);
+    document.getElementById('intraLinkModal').classList.remove('open');
+    renderOpen();
+    if(window.showToast) showToast('✓ Prices pulled from intraday idea');
+  } else {
+    if(window.showToast) showToast('No prices set on intraday idea yet','warn');
+  }
+}
+
+function goNewIntradayForTrade(){
+  const tradeId = S.intraLinkTradeId;
+  document.getElementById('intraLinkModal').classList.remove('open');
+  navTo('intraday');
+  setTimeout(()=>{
+    refreshIntraWeeklyDropdown();
+    const sel = document.getElementById('intraWeeklyLink');
+    if(sel && tradeId){
+      sel.value = tradeId;
+      onIntraWeeklyLink();
+    }
+  }, 150);
 }
 
 // ── TRADE NOTES ──
@@ -3255,6 +3401,18 @@ function saveIntradayIdea(){
   };
   S.trades.unshift(trade); saveTrade(trade);
 
+  // If linked to a parent open trade, auto-pull prices back
+  if(weeklyLinkId){
+    const parentTrade = S.trades.find(t=>t.id===weeklyLinkId && t.status==='open' && !t.isIntraday);
+    if(parentTrade){
+      let priceUpdated = false;
+      if(trade.entryPrice!=null){ parentTrade.entryPrice=trade.entryPrice; priceUpdated=true; }
+      if(trade.slPrice!=null){ parentTrade.slPrice=trade.slPrice; priceUpdated=true; }
+      if(trade.tpPrice!=null){ parentTrade.tpPrice=trade.tpPrice; priceUpdated=true; }
+      if(priceUpdated) saveTrade(parentTrade);
+    }
+  }
+
   // Reset
   fullResetIntraday();
   updateOpenBadge(); updateIntradayBadge();
@@ -3380,6 +3538,16 @@ renderOpen = function(){
     const borderColor = t.isIntraday?'#9fa8da':(t.tags||[]).includes('weekly')?'#9fa8da':'var(--gold)';
     const headBg = t.isIntraday?'#e8eaf6':(t.tags||[]).includes('weekly')?'#e8eaf6':'var(--gold-lt)';
     const pairColor = t.isIntraday?'#3949ab':(t.tags||[]).includes('weekly')?'#3949ab':'var(--gold)';
+    // Daily Bias
+    const biasColor=t.biasSet==='BULLISH'?'var(--bull)':t.biasSet==='BEARISH'?'var(--bear)':'var(--muted)';
+    const biasBg=t.biasSet==='BULLISH'?'var(--bull-lt)':t.biasSet==='BEARISH'?'var(--bear-lt)':'var(--cream)';
+    const biasBorder=t.biasSet==='BULLISH'?'var(--bull)':t.biasSet==='BEARISH'?'var(--bear)':'var(--border)';
+    const biasPillHtml=t.biasSet?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;margin-bottom:4px;">
+      <span style="font-family:'Azeret Mono',monospace;font-size:7px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">Daily Bias</span>
+      <span style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;padding:3px 10px;border-radius:3px;border:1.5px solid ${biasBorder};background:${biasBg};color:${biasColor};white-space:nowrap;">${t.biasSet==='BULLISH'?'▲ ':t.biasSet==='BEARISH'?'▼ ':''}${t.biasSet}</span>
+    </div>`:'';
+    // Linked intraday ideas
+    const linkedIntra=(S.trades||[]).filter(it=>it.isIntraday&&it.weeklyLinkId===t.id&&it.status==='open');
     return `<div class="otc" style="border-color:${borderColor}">
       <div class="otc-head" style="background:${headBg};border-bottom-color:${borderColor}">
         <div>
@@ -3387,7 +3555,10 @@ renderOpen = function(){
           <div class="otc-meta">${t.date} · ${t.session||''} · <span class="time-badge">${new Date(t.openTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>
           <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${tagHtml}</div>
         </div>
-        ${t.score!==null?`<div class="otc-score"><span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span></div>`:''}
+        <div class="otc-score" style="display:flex;flex-direction:column;align-items:flex-end;gap:0;">
+          ${biasPillHtml}
+          ${t.score!==null?`<span class="pill pill-${gc}">${t.grade} — ${t.score.toFixed(1)}/10</span>`:''}
+        </div>
       </div>
       <div class="otc-body">
         ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
@@ -3398,9 +3569,29 @@ renderOpen = function(){
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
           <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen(${t.id},'closePrice',this.value)"></div>
         </div>
+        ${linkedIntra.length>0?`<div style="margin-bottom:10px;background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:5px;overflow:hidden;">
+          <div style="padding:6px 10px;background:#c5cae9;border-bottom:1px solid #9fa8da;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;">⚡</span>
+            <span style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#283593;text-transform:uppercase;">Linked Intraday Ideas (${linkedIntra.length})</span>
+          </div>
+          ${linkedIntra.map(it=>{
+            const itGc=gradeClass(it.grade);
+            return`<div style="padding:8px 10px;border-bottom:1px solid #c5cae9;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;color:#283593;">${it.pair} · ${it.session||''} · ${it.date}</div>
+                <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;">
+                  ${it.score!==null?`<span class="pill pill-${itGc}" style="font-size:8px;">${it.grade} · ${it.score.toFixed(1)}/10</span>`:''}
+                  ${it.entryPrice?` Entry: ${it.entryPrice}`:''}${it.slPrice?' · SL: '+it.slPrice:''}${it.tpPrice?' · TP: '+it.tpPrice:''}
+                </div>
+              </div>
+              <button onclick="pullPricesFromIntra(${t.id},${it.id})" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:4px 10px;border:1.5px solid #283593;background:#283593;color:#fff;border-radius:3px;cursor:pointer;white-space:nowrap;flex-shrink:0;">↓ USE PRICES</button>
+            </div>`;
+          }).join('')}
+        </div>`:''}
         ${allSS.length>0?`<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`:''}
         <div class="otc-actions">
           <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
+          ${!t.isIntraday?`<button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="openIntraForTrade(${t.id})">⚡ INTRADAY IDEA</button>`:''}
           <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px" onclick="openTradeNoteModal(${t.id})">+ NOTE</button>
           <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT</button>
           <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 CHECKLIST</button>
