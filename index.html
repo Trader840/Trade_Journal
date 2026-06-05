@@ -3966,8 +3966,26 @@ function renderMiniCalendar(){
     <span style="display:flex;align-items:center;gap:4px;font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#9fa8da;border:1px solid #283593"></span>OPEN</span>
   </div>`;
 
+  // Day-of-year and days remaining
+  const startOfYear=new Date(yr,0,1);
+  const dayOfYear=Math.ceil((today-startOfYear)/(1000*60*60*24))+1;
+  const isLeap=(yr%4===0&&yr%100!==0)||(yr%400===0);
+  const totalDays=isLeap?366:365;
+  const daysLeft=totalDays-dayOfYear;
+  const dd=String(curD).padStart(2,'0');
+  const mm=String(curMo+1).padStart(2,'0');
+  const todayFmt=`${dd}/${mm}/${yr}`;
+
   el.innerHTML=`
-    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">TRADE CALENDAR</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+      <div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--ink);text-transform:uppercase;margin-bottom:5px;">CALENDAR</div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);">${todayFmt} &nbsp;·&nbsp; ${daysLeft} days remaining</div>
+      </div>
+      <div style="font-family:'Azeret Mono',monospace;font-size:20px;font-weight:700;color:var(--ink);text-align:right;line-height:1.1;">
+        ${dayOfYear}<span style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);font-weight:400"> / ${totalDays}</span>
+      </div>
+    </div>
     <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:4px;">
       ${monthsHtml.join('')}
     </div>
