@@ -621,15 +621,15 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
 
       <!-- Quick nav tiles -->
       <div class="quick-nav">
-        <button class="qn-tile" onclick="navTo('idea')">
-          <span class="qt-icon">💡</span>
-          <div><div class="qt-label">NEW TRADE IDEA</div><div class="qt-sub">Log tomorrow's setup</div></div>
-        </button>
         <button class="qn-tile" style="background:#283593" onclick="navTo('weekly')">
           <span class="qt-icon">📅</span>
           <div><div class="qt-label">WEEKLY BIAS</div><div class="qt-sub" id="weeklyTileSub">Swing journals</div></div>
         </button>
-        <button class="qn-tile" style="background:#1b5e20" onclick="navTo('intraday')">
+        <button class="qn-tile" onclick="navTo('idea')">
+          <span class="qt-icon">💡</span>
+          <div><div class="qt-label">NEW TRADE IDEA</div><div class="qt-sub">Log tomorrow's setup</div></div>
+        </button>
+        <button class="qn-tile" style="background:#1b5e20" onclick="navTo('intraday')"
           <span class="qt-icon">⚡</span>
           <div><div class="qt-label">INTRADAY IDEAS</div><div class="qt-sub" id="intradayTileSub">Day trade setups</div></div>
         </button>
@@ -911,6 +911,7 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
               <div class="field"><label>Entry Target</label><input type="number" step="any" id="intraEntry" placeholder="0.00000"></div>
               <div class="field"><label>Stop Loss</label><input type="number" step="any" id="intraSL" placeholder="0.00000"></div>
               <div class="field"><label>TP Target</label><input type="number" step="any" id="intraTP" placeholder="0.00000"></div>
+              <div class="field"><label>Lot Size</label><input type="number" step="any" id="intraLot" placeholder="0.01"></div>
             </div>
             <div class="field"><label>Trade Type</label>
               <div class="seg-btns" id="intraTypeBtns">
@@ -1445,6 +1446,34 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
 </div>
 </div>
 
+<!-- ══ TRADE HISTORY POPUP ══ -->
+<div class="modal-overlay" id="tradeHistoryModal">
+<div class="modal" style="max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+  <div class="modal-head" id="thHead" style="flex-shrink:0;">
+    <h3 id="thTitle" style="font-size:13px">TRADE REVIEW</h3>
+    <button class="modal-close" onclick="document.getElementById('tradeHistoryModal').classList.remove('open')">✕</button>
+  </div>
+  <div id="thBody" style="overflow-y:auto;flex:1;padding:14px 14px 0;"></div>
+  <!-- Add notes section (always editable) -->
+  <div style="flex-shrink:0;border-top:1.5px solid var(--cream);padding:12px 14px;background:var(--paper);">
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">ADD NOTE</div>
+    <div class="rte-wrap" style="margin-bottom:8px;">
+      <div class="rte-body" id="thNoteInput" contenteditable="true" data-placeholder="Post-trade notes, observations, lessons…" data-rte="true" style="min-height:48px;max-height:100px;overflow-y:auto;"></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <button class="btn-primary" style="font-size:9px;padding:6px 12px" onclick="thSaveNote()">+ SAVE NOTE</button>
+      <label style="font-family:'Azeret Mono',monospace;font-size:8px;cursor:pointer;border:1.5px solid var(--border);border-radius:3px;padding:5px 10px;color:var(--muted);">
+        📎 SCREENSHOT <input type="file" accept="image/*" multiple style="display:none" onchange="thAddScreenshots(event)">
+      </label>
+      <div id="thSsPreview" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-shrink:0;padding:8px 14px;">
+    <button class="btn-ghost" onclick="document.getElementById('tradeHistoryModal').classList.remove('open')">CLOSE</button>
+  </div>
+</div>
+</div>
+
 <script>
 // ════════════════════════════════════════════════
 // SCORING SCHEMA
@@ -1671,7 +1700,7 @@ function setSyncStatus(s){
 }
 
 function tradeToDb(t){
-  return {
+  const row = {
     id:t.id, user_id:_currentUser.id, status:t.status,
     is_intraday:t.isIntraday||false, weekly_link_id:t.weeklyLinkId||null,
     date:t.date, pair:t.pair, session:t.session, trade_type:t.tradeType||'BUY',
@@ -1686,6 +1715,9 @@ function tradeToDb(t){
     eod_screenshots:t.eodScreenshots||[], followup_screenshots:t.followupScreenshots||[],
     checklist_answers:t.checklistAnswers||{}, checklist_kills:t.checklistKills||{},
   };
+  // lot_size is only set from intraday ideas — only include if present to avoid schema errors
+  if(t.lotSize!=null) row.lot_size = t.lotSize;
+  return row;
 }
 function dbToTrade(r){
   return {
@@ -1695,7 +1727,7 @@ function dbToTrade(r){
     biasMatch:r.bias_match, result:r.result, tp2r:r.tp2r||'N/A', tp15r:r.tp15r||'N/A',
     ideaNotes:r.idea_notes||'', updateNotes:r.update_notes||'',
     closeNotes:r.close_notes||'', followupNotes:r.followup_notes||'',
-    entryPrice:r.entry_price, closePrice:r.close_price, slPrice:r.sl_price, tpPrice:r.tp_price,
+    entryPrice:r.entry_price, closePrice:r.close_price, slPrice:r.sl_price, tpPrice:r.tp_price, lotSize:r.lot_size||null,
     openTime:r.open_time, closeTime:r.close_time,
     tags:r.tags||[], screenshots:r.screenshots||[],
     eodScreenshots:r.eod_screenshots||[], followupScreenshots:r.followup_screenshots||[],
@@ -2116,13 +2148,13 @@ function saveIdeaAsOpen(){
     tp2r:'N/A', tp15r:'N/A',
     ideaNotes:rteGet('ideaNotes').trim(),
     updateNotes:'', closeNotes:'', followupNotes:'',
-    entryPrice:null, closePrice:null, slPrice:null,
+    entryPrice:null, closePrice:null, slPrice:null, tpPrice:null, lotSize:null,
     openTime:new Date().toISOString(), closeTime:null,
     screenshots:[...S.ideaSS], eodScreenshots:[], followupScreenshots:[],
     checklistAnswers:{...S.answers},
     checklistKills:{...S.kills},
   };
-  S.trades.unshift(trade); saveTrades();
+  S.trades.unshift(trade); saveTrade(trade);
   // Full reset after logging
   S.answers={}; S.kills={}; S.killOpen=false; S.ideaSS=[];
   document.getElementById('ideaPair').value='';
@@ -2133,7 +2165,7 @@ function saveIdeaAsOpen(){
   const vd=document.getElementById('ideaVerdict'); if(vd) vd.style.display='none';
   updateScoreStrip(); renderBiasCards(); renderEntrySection();
   updateOpenBadge();
-  alert('✓ Trade idea logged for '+pair+' on '+date+'.\nGrade: '+grade+(ans?' · Score: '+score.toFixed(1):'')+'\n\nFind it in Open Trades.');
+  showToast('✓ Trade idea logged — '+pair+' '+grade);
   navTo('open');
 }
 
@@ -2184,9 +2216,10 @@ function renderOpen(){
         ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
         ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
         ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:5px">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<div class="ss-grid" style="margin-top:5px">${n.screenshots.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""></div>`).join('')}</div>`:''}</div>`).join('')}</div>`:''}
-        <div class="otc-prices">
+        <div class="otc-prices" style="grid-template-columns:repeat(2,1fr)">
           <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
+          <div class="otc-field"><label>TP Target</label><input type="number" step="any" placeholder="0.00000" value="${t.tpPrice||''}" onchange="patchOpen(${t.id},'tpPrice',this.value)"></div>
           <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen(${t.id},'closePrice',this.value)"></div>
         </div>
         ${linkedIntra.length>0?`<div style="margin-bottom:10px;background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:5px;overflow:hidden;">
@@ -2216,6 +2249,7 @@ function renderOpen(){
           <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT / UPDATE</button>
           <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 UPDATE CHECKLIST</button>
           <button class="btn-ghost" onclick="addSsToOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">+ SCREENSHOT</button>
+          <button class="btn-ghost" onclick="shareOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">📤 SHARE</button>
           <button class="del-btn" onclick="deleteOpenTrade(${t.id})">DELETE</button>
         </div>
       </div>
@@ -2245,7 +2279,7 @@ function addSsToOpenTrade(id){
 
 function deleteOpenTrade(id){
   if(!confirm('Delete this trade idea? Cannot be undone.')) return;
-  S.trades=S.trades.filter(t=>t.id!==id); saveTrades(); renderOpen(); renderDashboard();
+  S.trades=S.trades.filter(t=>t.id!==id); deleteTradeSupa(id); renderOpen(); renderDashboard();
 }
 
 // ════════════════════════════════════════════════
@@ -2313,6 +2347,7 @@ function pullPricesFromIntra(tradeId, intraId){
   if(it.entryPrice!=null){ t.entryPrice=it.entryPrice; updated=true; }
   if(it.slPrice!=null){ t.slPrice=it.slPrice; updated=true; }
   if(it.tpPrice!=null){ t.tpPrice=it.tpPrice; updated=true; }
+  if(it.lotSize!=null){ t.lotSize=it.lotSize; updated=true; }
   if(updated){
     saveTrade(t);
     document.getElementById('intraLinkModal').classList.remove('open');
@@ -2393,7 +2428,7 @@ function saveChecklistUpdate(){
   if(allAns){ t.score=total; t.grade=getGrade(total); }
   saveTrade(t);
   S.checklistMode=null; S.checklistEditId=null;
-  alert('✓ Checklist updated for '+t.pair+'.\nNew grade: '+t.grade+(t.score!==null?' · Score: '+t.score.toFixed(1):''));
+  showToast('✓ Checklist updated — '+t.grade+(t.score!==null?' · '+t.score.toFixed(1):''));
   navTo('open');
 }
 
@@ -2422,7 +2457,7 @@ function saveEditOpen(){
   t.closePrice=parseFloat(document.getElementById('eoiCurrent').value)||t.closePrice;
   t.updateNotes=rteGet('eoiNotes').trim();
   if(S.eoiSS.length>0) t.screenshots=[...(t.screenshots||[]),...S.eoiSS];
-  saveTrades();
+  saveTrade(t);
   document.getElementById('editOpenModal').classList.remove('open');
   S.eoiEditId=null; S.eoiSS=[];
   renderOpen();
@@ -2495,9 +2530,46 @@ function saveClosure(){
   t.closeNotes=rteGet('cmNotes').trim();
   t.closeTime=new Date().toISOString();
   t.eodScreenshots=[...(t.eodScreenshots||[]),...S.cmSS];
-  saveTrade(t); closeModalHide();
+  saveTrade(t);
+
+  // ── Auto-close linked trades ──
+  const closeTime = t.closeTime;
+  if(t.isIntraday && t.weeklyLinkId){
+    // Closing an intraday → close the parent trade idea if it is still open
+    const parent = S.trades.find(p=>p.id===t.weeklyLinkId && !p.isIntraday && p.status==='open');
+    if(parent){
+      parent.status='closed'; parent.result=result;
+      parent.biasPlayed=S.cmData.biasPlayed;
+      parent.biasMatch=(parent.biasSet===S.cmData.biasPlayed)?'YES':'NO';
+      parent.tp2r=S.cmData.tp2r||'N/A'; parent.tp15r=S.cmData.tp15r||'N/A';
+      if(entryVal) parent.entryPrice=entryVal;
+      if(closeVal) parent.closePrice=closeVal;
+      if(slVal) parent.slPrice=slVal;
+      parent.closeNotes=parent.closeNotes||rteGet('cmNotes').trim();
+      parent.closeTime=closeTime;
+      saveTrade(parent);
+      showToast('✓ Intraday closed — parent trade idea also closed', 'ok');
+    }
+  } else if(!t.isIntraday){
+    // Closing a parent trade idea → close all linked open intraday trades
+    const linkedIntras = S.trades.filter(it=>it.isIntraday && it.weeklyLinkId===t.id && it.status==='open');
+    if(linkedIntras.length > 0){
+      linkedIntras.forEach(it=>{
+        it.status='closed'; it.result=result;
+        it.biasPlayed=S.cmData.biasPlayed;
+        it.biasMatch=(it.biasSet===S.cmData.biasPlayed)?'YES':'NO';
+        it.tp2r=S.cmData.tp2r||'N/A'; it.tp15r=S.cmData.tp15r||'N/A';
+        if(closeVal) it.closePrice=closeVal;
+        it.closeTime=closeTime;
+        saveTrade(it);
+      });
+      showToast('✓ Trade closed — '+linkedIntras.length+' linked intraday idea'+(linkedIntras.length>1?'s':'')+' also closed', 'ok');
+    }
+  }
+
+  closeModalHide();
   S.cmEditId=null; S.cmSS=[];
-  updateOpenBadge(); renderOpen(); renderDashboard();
+  updateOpenBadge(); updateIntradayBadge(); renderOpen(); renderDashboard();
   navTo('closed');
 }
 
@@ -2567,7 +2639,7 @@ function saveEditClosed(){
   if(S.ecSS.length>0) t.followupScreenshots=[...(t.followupScreenshots||[]),...S.ecSS];
   // recalc bias match
   t.biasMatch=(t.biasSet&&t.biasPlayed&&t.biasSet===t.biasPlayed)?'YES':'NO';
-  saveTrades();
+  saveTrade(t);
   document.getElementById('editClosedModal').classList.remove('open');
   S.ecEditId=null; S.ecSS=[];
   renderClosed(); renderDashboard();
@@ -2595,7 +2667,7 @@ function renderClosed(){
     const rColor=r===null?'var(--muted)':r>0?'var(--bull)':r<0?'var(--bear)':'var(--gold)';
     const bsc=t.biasSet==='BULLISH'?'bull':t.biasSet==='BEARISH'?'bear':'neutral';
     const hasFollowup=t.followupNotes||(t.followupScreenshots&&t.followupScreenshots.length>0);
-    return`<tr>
+    return`<tr style="cursor:pointer" onclick="openTradeHistory(${t.id})">
       <td style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted)">${t.date}</td>
       <td style="font-family:'Azeret Mono',monospace;font-weight:700">${t.pair}</td>
       <td class="score-cell" style="color:${gc==='aplus'?'var(--aplus)':gc==='a'?'var(--bull)':gc==='b'?'var(--gold)':gc==='c'?'#7a3a00':'var(--bear)'}">${t.score!==null?t.score.toFixed(1):'—'}</td>
@@ -2608,7 +2680,7 @@ function renderClosed(){
       <td><span class="pill pill-${t.tp15r==='YES'?'yes':'no'}">${t.tp15r||'—'}</span></td>
       <td><span class="pill pill-${bsc}">${t.biasSet||'—'}</span></td>
       <td style="font-size:10px;color:var(--muted);max-width:120px;white-space:normal">${t.followupNotes||t.closeNotes||t.ideaNotes||'—'} ${hasFollowup?'<span style="color:var(--gold)">★</span>':''}</td>
-      <td style="white-space:nowrap">
+      <td style="white-space:nowrap" onclick="event.stopPropagation()">
         <button class="edit-btn" onclick="openEditClosedModal(${t.id})">✏ EDIT</button>
         <button class="del-btn" onclick="deleteTrade(${t.id})">DEL</button>
       </td>
@@ -3350,7 +3422,6 @@ function setIntraType(type, el){
 }
 
 function fullResetIntraday(){
-  if(!confirm('Clear all intraday checklist fields?')) return;
   S.intraAnswers={}; S.intraKills={}; S.intraSS=[]; S.intraType='BUY';
   S.intraTags=['intraday'];
   document.getElementById('intraPair').value='';
@@ -3360,6 +3431,7 @@ function fullResetIntraday(){
   document.getElementById('intraEntry').value='';
   document.getElementById('intraSL').value='';
   document.getElementById('intraTP').value='';
+  document.getElementById('intraLot').value='';
   document.getElementById('intraSsGrid').innerHTML='';
   document.getElementById('intraWeeklyLink').value='';
   document.getElementById('intraContextBar').style.display='none';
@@ -3393,6 +3465,7 @@ function saveIntradayIdea(){
     closePrice:null,
     slPrice:parseFloat(document.getElementById('intraSL').value)||null,
     tpPrice:parseFloat(document.getElementById('intraTP').value)||null,
+    lotSize:parseFloat(document.getElementById('intraLot').value)||null,
     openTime:new Date().toISOString(), closeTime:null,
     screenshots:[...S.intraSS], eodScreenshots:[], followupScreenshots:[],
     checklistAnswers:{...S.intraAnswers},
@@ -3409,6 +3482,7 @@ function saveIntradayIdea(){
       if(trade.entryPrice!=null){ parentTrade.entryPrice=trade.entryPrice; priceUpdated=true; }
       if(trade.slPrice!=null){ parentTrade.slPrice=trade.slPrice; priceUpdated=true; }
       if(trade.tpPrice!=null){ parentTrade.tpPrice=trade.tpPrice; priceUpdated=true; }
+      if(trade.lotSize!=null){ parentTrade.lotSize=trade.lotSize; priceUpdated=true; }
       if(priceUpdated) saveTrade(parentTrade);
     }
   }
@@ -3416,7 +3490,7 @@ function saveIntradayIdea(){
   // Reset
   fullResetIntraday();
   updateOpenBadge(); updateIntradayBadge();
-  alert('⚡ Intraday idea logged for '+pair+' on '+date+'.\nGrade: '+grade+(ans?' · Score: '+score.toFixed(1):'')+' \n\nFind it in Open Trades.');
+  showToast('⚡ Intraday logged — '+pair+' '+grade);
   navTo('open');
 }
 
@@ -3513,7 +3587,7 @@ saveIdeaAsOpen = function(){
   const vd=document.getElementById('ideaVerdict'); if(vd) vd.style.display='none';
   updateScoreStrip(); renderBiasCards(); renderEntrySection();
   updateOpenBadge();
-  alert('✓ Trade idea logged for '+pair+' on '+date+'.\nGrade: '+grade+(ans?' · Score: '+score.toFixed(1):'')+' \n\nFind it in Open Trades.');
+  showToast('✓ Trade idea logged — '+pair+' '+grade);
   navTo('open');
 };
 
@@ -3564,9 +3638,10 @@ renderOpen = function(){
         ${t.ideaNotes?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--cream);border-radius:4px">${rteDisplay(t.ideaNotes)}</div>`:''}
         ${t.updateNotes?`<div style="font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.5;padding:6px 8px;background:var(--gold-lt);border-radius:4px;border-left:3px solid var(--gold)"><span style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--gold);letter-spacing:1px;font-weight:700">UPDATE →</span><br>${rteDisplay(t.updateNotes)}</div>`:''}
         ${(t.tradeNotes&&t.tradeNotes.length>0)?`<div style="margin-bottom:10px;border-top:1px solid var(--cream);padding-top:8px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#3949ab;text-transform:uppercase;margin-bottom:5px">NOTES TIMELINE</div>${[...t.tradeNotes].reverse().map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:5px;border-left:3px solid #9fa8da"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:12px;line-height:1.6">${rteDisplay(n.text)||''}</div>${(n.screenshots&&n.screenshots.length>0)?`<div class="ss-grid" style="margin-top:5px">${n.screenshots.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""></div>`).join('')}</div>`:''}</div>`).join('')}</div>`:''}
-        <div class="otc-prices">
+        <div class="otc-prices" style="grid-template-columns:repeat(2,1fr)">
           <div class="otc-field"><label>Entry</label><input type="number" step="any" placeholder="0.00000" value="${t.entryPrice||''}" onchange="patchOpen(${t.id},'entryPrice',this.value)"></div>
           <div class="otc-field"><label>Stop Loss</label><input type="number" step="any" placeholder="0.00000" value="${t.slPrice||''}" onchange="patchOpen(${t.id},'slPrice',this.value)"></div>
+          <div class="otc-field"><label>TP Target</label><input type="number" step="any" placeholder="0.00000" value="${t.tpPrice||''}" onchange="patchOpen(${t.id},'tpPrice',this.value)"></div>
           <div class="otc-field"><label>Current / Close</label><input type="number" step="any" placeholder="0.00000" value="${t.closePrice||''}" onchange="patchOpen(${t.id},'closePrice',this.value)"></div>
         </div>
         ${linkedIntra.length>0?`<div style="margin-bottom:10px;background:#e8eaf6;border:1.5px solid #9fa8da;border-radius:5px;overflow:hidden;">
@@ -3596,6 +3671,7 @@ renderOpen = function(){
           <button class="btn-ghost" onclick="openEditOpenModal(${t.id})">✏ EDIT</button>
           <button class="btn-ghost" onclick="openChecklistEdit(${t.id})" style="border-color:var(--gold);color:var(--gold)">📋 CHECKLIST</button>
           <button class="btn-ghost" onclick="addSsToOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">+ SHOT</button>
+          <button class="btn-ghost" onclick="shareOpenTrade(${t.id})" style="padding:5px 10px;font-size:8px">📤 SHARE</button>
           <button class="del-btn" onclick="deleteOpenTrade(${t.id})">DEL</button>
         </div>
       </div>
@@ -3787,49 +3863,118 @@ function renderMiniCalendar(){
   const el=document.getElementById('miniCalendarWidget'); if(!el) return;
   const today=new Date();
   const yr=today.getFullYear(), curMo=today.getMonth(), curD=today.getDate();
-  const start=new Date(yr,0,0);
-  const doy=Math.floor((today-start)/(1000*60*60*24));
-  const isLeap=(yr%4===0&&yr%100!==0)||(yr%400===0);
-  const total=isLeap?366:365;
   const DAYS=['M','T','W','T','F','S','S'];
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Build date→trades map from closed + open trades
+  const tradesByDate={};
+  (S.trades||[]).forEach(t=>{
+    if(!t.date||t.isIntraday) return;
+    if(!tradesByDate[t.date]) tradesByDate[t.date]={wins:0,losses:0,be:0,open:0,grades:[]};
+    const d=tradesByDate[t.date];
+    if(t.status==='open') d.open++;
+    else if(t.result==='WIN') d.wins++;
+    else if(t.result==='LOSS') d.losses++;
+    else if(t.result==='BE') d.be++;
+    if(t.grade&&t.grade!=='N/A') d.grades.push(t.grade);
+  });
+
+  // Day-of-week stats (Mon=0 … Fri=4)
+  const dowStats=Array.from({length:5},()=>({wins:0,losses:0,be:0}));
+  (S.trades||[]).forEach(t=>{
+    if(!t.date||t.isIntraday||t.status!=='closed') return;
+    const dow=new Date(t.date+'T12:00:00').getDay(); // 0=Sun
+    const idx=dow===0?null:dow-1; // Mon=0…Fri=4, skip Sat/Sun
+    if(idx===null||idx>4) return;
+    if(t.result==='WIN') dowStats[idx].wins++;
+    else if(t.result==='LOSS') dowStats[idx].losses++;
+    else if(t.result==='BE') dowStats[idx].be++;
+  });
+  const DOW_LABELS=['MON','TUE','WED','THU','FRI'];
+
+  function dotHtml(dateStr){
+    const d=tradesByDate[dateStr]; if(!d) return '';
+    const dots=[];
+    for(let i=0;i<d.wins;i++) dots.push(`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--bull);margin:0 0.5px"></span>`);
+    for(let i=0;i<d.losses;i++) dots.push(`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--bear);margin:0 0.5px"></span>`);
+    for(let i=0;i<d.be;i++) dots.push(`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--gold);margin:0 0.5px"></span>`);
+    for(let i=0;i<d.open;i++) dots.push(`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#9fa8da;border:1px solid #283593;margin:0 0.5px"></span>`);
+    return dots.length?`<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:1px;margin-top:1px">${dots.join('')}</div>`:'';
+  }
 
   function buildMonthHtml(mo, moYr){
     const isCurrentMonth = mo===curMo && moYr===yr;
-    const monthName=new Date(moYr,mo,1).toLocaleString('default',{month:'short'});
     const firstDow=new Date(moYr,mo,1).getDay();
-    const firstMon=(firstDow+6)%7;
+    const firstMon=(firstDow+6)%7; // shift so Mon=0
     const daysInMonth=new Date(moYr,mo+1,0).getDate();
     let cells='';
     for(let i=0;i<firstMon;i++) cells+=`<div></div>`;
-    for(let i=1;i<=daysInMonth;i++){
-      const isToday=isCurrentMonth&&i===curD;
-      const isPast=isCurrentMonth?i<curD:false;
-      cells+=`<div style="width:19px;height:19px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-family:'Azeret Mono',monospace;font-size:8px;${isToday?'background:var(--ink);color:var(--paper);font-weight:700;':isPast?'color:var(--muted);':'color:var(--ink);'}">${i}</div>`;
+    for(let d=1;d<=daysInMonth;d++){
+      const isToday=isCurrentMonth&&d===curD;
+      const isPast=new Date(moYr,mo,d)<new Date(yr,curMo,curD);
+      const dateStr=`${moYr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const td=tradesByDate[dateStr];
+      const hasTrade=!!td;
+      const bg=isToday?'background:var(--ink);color:var(--paper);font-weight:700':
+                hasTrade&&td.wins>0&&td.losses===0?'background:var(--bull-lt)':
+                hasTrade&&td.losses>0&&td.wins===0?'background:var(--bear-lt)':
+                hasTrade?'background:var(--gold-lt)':'';
+      const col=isToday?'':`color:${isPast?'var(--muted)':'var(--ink)'}`;
+      cells+=`<div style="display:flex;flex-direction:column;align-items:center;border-radius:4px;padding:1px 0;${bg};${col}">
+        <span style="font-family:'Azeret Mono',monospace;font-size:8px;line-height:1.4">${d}</span>
+        ${dotHtml(dateStr)}
+      </div>`;
     }
-    return `<div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border);">
-        <div style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;color:${isCurrentMonth?'var(--ink)':'var(--muted)'};letter-spacing:1px;">${monthName.toUpperCase()} ${moYr}</div>
-        ${isCurrentMonth?`<div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);">${doy}d</div>`:''}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(7,19px);gap:1px;">
-        ${DAYS.map(d=>`<div style="width:19px;height:16px;display:flex;align-items:center;justify-content:center;font-family:'Azeret Mono',monospace;font-size:7px;font-weight:700;color:var(--muted);">${d}</div>`).join('')}
+    return `<div style="min-width:154px;flex:1">
+      <div style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;color:${isCurrentMonth?'var(--ink)':'var(--muted)'};letter-spacing:1px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border)">${MONTHS[mo].toUpperCase()} ${moYr}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">
+        ${DAYS.map(d=>`<div style="font-family:'Azeret Mono',monospace;font-size:7px;font-weight:700;color:var(--muted);text-align:center;padding-bottom:2px">${d}</div>`).join('')}
         ${cells}
       </div>
     </div>`;
   }
 
-  // Show current month + next 3 months
-  let months = [];
-  for(let i=0; i<3; i++){
-    const mo = (curMo+i)%12;
-    const moYr = yr + Math.floor((curMo+i)/12);
-    months.push(buildMonthHtml(mo, moYr));
+  // Show current month + next month
+  const monthsHtml=[];
+  for(let i=0;i<2;i++){
+    const mo=(curMo+i)%12, moYr=yr+Math.floor((curMo+i)/12);
+    monthsHtml.push(buildMonthHtml(mo,moYr));
   }
 
+  // Day-of-week performance bar
+  const dowHtml=DOW_LABELS.map((lbl,i)=>{
+    const s=dowStats[i];
+    const total=s.wins+s.losses+s.be;
+    const wr=total>0?Math.round(s.wins/total*100):null;
+    const barCol=wr===null?'var(--border)':wr>=60?'var(--bull)':wr>=40?'var(--gold)':'var(--bear)';
+    const barW=total>0?Math.max(8,wr)+'%':'8%';
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <div style="font-family:'Azeret Mono',monospace;font-size:7px;font-weight:700;color:var(--muted)">${lbl}</div>
+      <div style="width:100%;height:32px;background:var(--cream);border-radius:3px;overflow:hidden;display:flex;align-items:flex-end;">
+        <div style="width:100%;height:${barW};background:${barCol};transition:height .3s;border-radius:3px 3px 0 0"></div>
+      </div>
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;color:${barCol}">${wr!==null?wr+'%':'—'}</div>
+      <div style="font-family:'Azeret Mono',monospace;font-size:7px;color:var(--muted)">${total}t</div>
+    </div>`;
+  }).join('');
+
+  // Legend
+  const legendHtml=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+    <span style="display:flex;align-items:center;gap:4px;font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--bull)"></span>WIN</span>
+    <span style="display:flex;align-items:center;gap:4px;font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--bear)"></span>LOSS</span>
+    <span style="display:flex;align-items:center;gap:4px;font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold)"></span>BE</span>
+    <span style="display:flex;align-items:center;gap:4px;font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#9fa8da;border:1px solid #283593"></span>OPEN</span>
+  </div>`;
+
   el.innerHTML=`
-    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">${yr} CALENDAR · ${total - doy} DAYS REMAINING (${doy}/${total})</div>
-    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;">
-      ${months.join('')}
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">TRADE CALENDAR</div>
+    <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:4px;">
+      ${monthsHtml.join('')}
+    </div>
+    ${legendHtml}
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:2px;color:var(--muted);margin-bottom:8px">WIN RATE BY DAY</div>
+      <div style="display:flex;gap:6px;align-items:flex-end">${dowHtml}</div>
     </div>`;
 }
 
@@ -3952,6 +4097,208 @@ function rteDisplay(html){
   // If plain text (no tags), just return it
   if(!/<[a-z]/.test(html)) return html.replace(/\n/g,'<br>');
   return html;
+}
+
+// ════════════════════════════════════════════════
+// TRADE HISTORY POPUP
+// ════════════════════════════════════════════════
+let _thId=null, _thNewSS=[];
+
+function stripHtml(html){
+  if(!html) return '';
+  return html.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+}
+
+function openTradeHistory(id){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  const intra=S.trades.find(it=>it.isIntraday&&it.weeklyLinkId===t.id);
+  _thId=id; _thNewSS=[];
+  document.getElementById('thNoteInput').innerHTML='';
+  document.getElementById('thSsPreview').innerHTML='';
+  document.getElementById('thTitle').textContent=t.pair+' · '+t.date;
+
+  function infoGrid(items){
+    const filtered=items.filter(([,v])=>v!=null&&v!=='');
+    if(!filtered.length) return '';
+    return`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;">
+      ${filtered.map(([lbl,val])=>`<div style="background:var(--cream);border-radius:4px;padding:7px 9px;">
+        <div style="font-family:'Azeret Mono',monospace;font-size:7px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:2px">${lbl}</div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;word-break:break-all">${val}</div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  function noteBlock(label, html, color){
+    if(!html) return '';
+    return`<div style="margin-bottom:10px">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:${color};text-transform:uppercase;margin-bottom:4px">${label}</div>
+      <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--cream);border-radius:4px;border-left:3px solid ${color}">${rteDisplay(html)}</div>
+    </div>`;
+  }
+
+  function ssBlock(list){
+    if(!list||!list.length) return '';
+    return`<div style="margin-bottom:10px"><div class="ss-grid">${list.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('')}</div></div>`;
+  }
+
+  const r=calcR(t);
+  const rDisplay=r!==null?(r>=0?'+':'')+r.toFixed(2)+'R':'—';
+  const rColor=r===null?'var(--muted)':r>0?'var(--bull)':r<0?'var(--bear)':'var(--gold)';
+  const gc=gradeClass(t.grade);
+  const rc=t.result==='WIN'?'win':t.result==='LOSS'?'loss':'skip';
+  const biasColor=t.biasSet==='BULLISH'?'var(--bull)':t.biasSet==='BEARISH'?'var(--bear)':'var(--muted)';
+  const biasArrow=t.biasSet==='BULLISH'?'▲ ':t.biasSet==='BEARISH'?'▼ ':'';
+
+  // All screenshots merged
+  const allSS=[...(t.screenshots||[]),...(t.eodScreenshots||[]),...(t.followupScreenshots||[])];
+  const intraSS=intra?[...(intra.screenshots||[]),...(intra.eodScreenshots||[])]:[];
+
+  // Timeline notes
+  function timelineHtml(notes){
+    if(!notes||!notes.length) return '';
+    return`<div style="margin-bottom:10px">${[...notes].reverse().map(n=>`<div style="margin-bottom:5px;padding:6px 10px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:2px">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+      <div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)||''}</div>
+    </div>`).join('')}</div>`;
+  }
+
+  document.getElementById('thBody').innerHTML=`
+    <!-- Summary strip -->
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-bottom:12px;border-bottom:1.5px solid var(--cream);margin-bottom:14px;">
+      <span class="pill pill-${gc}">${t.grade}${t.score!==null?' · '+t.score.toFixed(1)+'/10':''}</span>
+      <span class="pill pill-${rc}">${t.result||'—'}</span>
+      <span style="font-family:'Azeret Mono',monospace;font-size:14px;font-weight:700;color:${rColor}">${rDisplay}</span>
+      ${t.biasSet?`<span style="font-family:'Azeret Mono',monospace;font-size:9px;padding:3px 8px;border-radius:3px;background:var(--cream);color:${biasColor};border:1px solid ${biasColor}">${biasArrow}${t.biasSet}</span>`:''}
+      ${t.biasPlayed?`<span style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted)">Played: ${t.biasPlayed} <b style="color:${t.biasMatch==='YES'?'var(--bull)':'var(--bear)'}">(${t.biasMatch})</b></span>`:''}
+    </div>
+
+    <!-- ── PLAN section ── -->
+    <div style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--ink);text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);">📋 PLAN — PRE-MARKET IDEA</div>
+    ${infoGrid([['Session',t.session],['Direction',t.tradeType],['Entry',t.entryPrice],['Close Price',t.closePrice||null],['Stop Loss',t.slPrice],['TP Target',t.tpPrice],['TP 2R',t.tp2r&&t.tp2r!=='N/A'?t.tp2r:null],['TP 1.5R',t.tp15r&&t.tp15r!=='N/A'?t.tp15r:null]])}
+    ${noteBlock('Idea',t.ideaNotes,'var(--muted)')}
+    ${noteBlock('Update',t.updateNotes,'var(--gold)')}
+    ${t.tradeNotes&&t.tradeNotes.length?`<div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;color:#3949ab;text-transform:uppercase;margin-bottom:4px">NOTES TIMELINE</div>${timelineHtml(t.tradeNotes)}`:''}
+    ${ssBlock(allSS)}
+
+    <!-- ── EXECUTION section (only if intraday exists) ── -->
+    ${intra?`
+    <div style="font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2px;color:#1b5e20;text-transform:uppercase;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);">⚡ EXECUTION — INTRADAY SETUP</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;">
+      <span class="pill pill-${gradeClass(intra.grade)}">${intra.grade}${intra.score!==null?' · '+intra.score.toFixed(1)+'/10':''}</span>
+      ${intra.biasSet?`<span style="font-family:'Azeret Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;background:var(--cream);color:${intra.biasSet==='BULLISH'?'var(--bull)':intra.biasSet==='BEARISH'?'var(--bear)':'var(--muted)'}">${intra.biasSet==='BULLISH'?'▲ ':intra.biasSet==='BEARISH'?'▼ ':''}${intra.biasSet}</span>`:''}
+    </div>
+    ${infoGrid([['Session',intra.session],['Direction',intra.tradeType],['Entry',intra.entryPrice],['Stop Loss',intra.slPrice],['TP Target',intra.tpPrice],['Lot Size',intra.lotSize],['Close',t.closePrice]])}
+    ${noteBlock('Execution Notes',intra.ideaNotes,'#1b5e20')}
+    ${intra.tradeNotes&&intra.tradeNotes.length?`<div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;color:#3949ab;text-transform:uppercase;margin-bottom:4px">NOTES TIMELINE</div>${timelineHtml(intra.tradeNotes)}`:''}
+    ${ssBlock(intraSS)}`:'<div style="font-family:\'Azeret Mono\',monospace;font-size:9px;color:var(--muted);padding:10px 0 4px">No intraday execution logged for this trade.</div>'}
+
+    <!-- ── Close notes ── -->
+    ${noteBlock('Post-Trade Notes',t.closeNotes,'#c62828')}
+
+    <!-- ── Existing saved follow-up notes ── -->
+    ${(t.reviewNotes&&t.reviewNotes.length)?`
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#283593;text-transform:uppercase;margin-bottom:4px;margin-top:8px">REVIEW NOTES</div>
+    ${t.reviewNotes.map(n=>`<div style="margin-bottom:6px;padding:7px 10px;background:#f0f2ff;border-radius:4px;border-left:3px solid #9fa8da">
+      <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:2px">${new Date(n.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+      <div style="font-size:12px;line-height:1.5">${rteDisplay(n.text)}</div>
+    </div>`).join('')}`:''}
+    ${ssBlock(t.reviewScreenshots||[])}
+    <div style="height:8px"></div>
+  `;
+  document.getElementById('tradeHistoryModal').classList.add('open');
+}
+
+function thSaveNote(){
+  const t=S.trades.find(t=>t.id===_thId); if(!t) return;
+  const text=document.getElementById('thNoteInput').innerHTML.trim();
+  if(!text&&!_thNewSS.length){alert('Add a note or screenshot first.');return;}
+  if(!t.reviewNotes) t.reviewNotes=[];
+  if(!t.reviewScreenshots) t.reviewScreenshots=[];
+  if(text) t.reviewNotes.push({at:new Date().toISOString(),text});
+  _thNewSS.forEach(ss=>t.reviewScreenshots.push(ss));
+  saveTrade(t);
+  _thNewSS=[];
+  document.getElementById('thNoteInput').innerHTML='';
+  document.getElementById('thSsPreview').innerHTML='';
+  openTradeHistory(_thId); // re-render body
+}
+
+function thAddScreenshots(e){
+  Array.from(e.target.files).forEach(f=>{
+    const r=new FileReader();
+    r.onload=ev=>{
+      const ss={id:Date.now()+'_'+Math.random().toString(36).slice(2),name:f.name,dataUrl:ev.target.result,label:'Review Chart',at:new Date().toLocaleString()};
+      _thNewSS.push(ss);
+      const prev=document.getElementById('thSsPreview');
+      const img=document.createElement('img');
+      img.src=ss.dataUrl; img.style.cssText='width:44px;height:44px;object-fit:cover;border-radius:4px;border:1.5px solid var(--gold);cursor:pointer';
+      img.onclick=()=>openLb(ss.dataUrl);
+      prev.appendChild(img);
+    };
+    r.readAsDataURL(f);
+  });
+  e.target.value='';
+}
+
+// ════════════════════════════════════════════════
+// SHARE OPEN TRADE
+// ════════════════════════════════════════════════
+function shareOpenTrade(id){
+  const t=S.trades.find(t=>t.id===id); if(!t) return;
+  const intra=(S.trades||[]).filter(it=>it.isIntraday&&it.weeklyLinkId===t.id&&it.status==='open');
+
+  const dirEmoji = dir => dir==='BUY'?'🟢':dir==='SELL'?'🔴':'⚪';
+  const biasEmoji = b => b==='BULLISH'?'📈':b==='BEARISH'?'📉':'➖';
+  const gradeEmoji = g => g==='A+'?'🏆':g==='A'?'⭐':g==='B'?'✅':g==='C'?'⚠️':'❌';
+  const div = '──────────────────────';
+
+  // ── PLAN block
+  const biasLine   = t.biasSet     ? `  |  ${biasEmoji(t.biasSet)} ${t.biasSet}` : '';
+  const playedLine = t.biasPlayed  ? `\n🔁 Played: ${t.biasPlayed}${t.biasMatch?' ('+t.biasMatch+')':''}` : '';
+  const gradeLine  = (t.score!==null&&t.grade&&t.grade!=='N/A') ? `\n${gradeEmoji(t.grade)} Grade: ${t.grade} · ${t.score.toFixed(1)}/10` : '';
+  const ideaLine   = t.ideaNotes   ? `\n💡 ${stripHtml(t.ideaNotes)}`   : '';
+  const updateLine = t.updateNotes ? `\n🔄 ${stripHtml(t.updateNotes)}` : '';
+  const notesLines = t.tradeNotes&&t.tradeNotes.length
+    ? '\n📌 Notes:\n'+[...t.tradeNotes].reverse().slice(0,2).map(n=>`  • ${stripHtml(n.text)}`).join('\n')
+    : '';
+
+  // Only show prices on parent if there is NO linked intraday (otherwise they're shown on intraday block)
+  const parentPriceLine = !intra.length ? [
+    t.entryPrice ? `🎯 Entry: ${t.entryPrice}` : null,
+    t.slPrice    ? `🛑 SL: ${t.slPrice}`        : null,
+    t.tpPrice    ? `✅ TP: ${t.tpPrice}`         : null,
+    t.lotSize    ? `📦 Lot: ${t.lotSize}`         : null,
+  ].filter(Boolean).join('   ') : '';
+
+  let out = `📊 *TRADE SETUP*
+${div}
+${dirEmoji(t.tradeType)} *${t.pair.toUpperCase()}*  |  ${t.tradeType||'—'}  |  📅 ${t.date}
+🕐 Session: ${t.session||'—'}${biasLine}${gradeLine}${playedLine}${parentPriceLine?'\n'+parentPriceLine:''}${ideaLine}${updateLine}${notesLines}`;
+
+  // ── INTRADAY block(s) — prices only shown here
+  if(intra.length){
+    intra.forEach((it,i)=>{
+      const iLabel  = intra.length>1 ? `⚡ INTRADAY ${i+1}` : '⚡ INTRADAY';
+      const iGrade  = (it.score!==null&&it.grade&&it.grade!=='N/A') ? `  ·  ${gradeEmoji(it.grade)} ${it.grade} ${it.score.toFixed(1)}/10` : '';
+      const iPrices = [
+        it.entryPrice  ? `🎯 Entry: ${it.entryPrice}` : null,
+        it.closePrice  ? `🏁 Close: ${it.closePrice}` : null,
+        it.slPrice     ? `🛑 SL: ${it.slPrice}`        : null,
+        it.tpPrice     ? `✅ TP: ${it.tpPrice}`         : null,
+        it.lotSize     ? `📦 Lot: ${it.lotSize}`         : null,
+      ].filter(Boolean).join('   ');
+      const iIdea  = it.ideaNotes ? `\n📝 ${stripHtml(it.ideaNotes)}` : '';
+      const iNotes = it.tradeNotes&&it.tradeNotes.length
+        ? '\n📌 Notes:\n'+[...it.tradeNotes].reverse().slice(0,2).map(n=>`  • ${stripHtml(n.text)}`).join('\n')
+        : '';
+      out += `\n${div}\n${iLabel}${iGrade}\n${dirEmoji(it.tradeType)} ${it.tradeType||'—'}  |  📅 ${it.date}  |  🕐 ${it.session||'—'}\n${iPrices}${iIdea}${iNotes}`;
+    });
+  }
+
+  out += `\n${div}`;
+
+  if(navigator.share){ navigator.share({title:`${t.pair.toUpperCase()} — ${t.tradeType||'Setup'}`,text:out}).catch(()=>{}); }
+  else if(navigator.clipboard){ navigator.clipboard.writeText(out).then(()=>showToast('✓ Copied to clipboard')); }
 }
 
 </script>
