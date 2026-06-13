@@ -2423,6 +2423,54 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const _sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 let _currentUser = null;
 
+// ── Device-aware cache sync ──────────────────────────────
+// Each device gets a stable random id. We keep a full local copy of
+// trades/weeklies/notes in localStorage along with the server's
+// last_modified timestamp at the time it was cached. On load we ask
+// Supabase for ONLY that timestamp (tiny row) — if it matches our cache,
+// we reuse the local copy and skip the heavy select('*') entirely.
+const DEVICE_ID = (function(){
+  let id = localStorage.getItem('ict_device_id');
+  if(!id){ id = crypto.randomUUID(); localStorage.setItem('ict_device_id', id); }
+  return id;
+})();
+function _cacheKey(suffix){ return 'ict_cache_'+suffix+'_'+(_currentUser?_currentUser.id:'anon'); }
+function saveLocalCache(){
+  try{
+    // Strip per-trade screenshot data — these are loaded lazily on demand and
+    // would otherwise blow past localStorage's ~5MB quota very quickly.
+    const lightTrades=(S.trades||[]).map(t=>{
+      const {screenshots,eodScreenshots,followupScreenshots,_ssLoaded,...rest}=t;
+      return rest;
+    });
+    localStorage.setItem(_cacheKey('trades'), JSON.stringify(lightTrades));
+    localStorage.setItem(_cacheKey('weeklies'), JSON.stringify(S.weeklies||[]));
+    localStorage.setItem(_cacheKey('notes'), JSON.stringify(S.notes||[]));
+  }catch(e){ console.warn('Cache save failed (quota?)', e); }
+}
+function loadLocalCache(){
+  try{
+    const tr=localStorage.getItem(_cacheKey('trades'));
+    const wr=localStorage.getItem(_cacheKey('weeklies'));
+    const nr=localStorage.getItem(_cacheKey('notes'));
+    if(tr===null||wr===null) return false;
+    S.trades=JSON.parse(tr); S.weeklies=JSON.parse(wr); S.notes=nr?JSON.parse(nr):[];
+    return true;
+  }catch(e){ return false; }
+}
+function getCachedLastMod(){ return localStorage.getItem(_cacheKey('lastmod')); }
+function setCachedLastMod(ts){ localStorage.setItem(_cacheKey('lastmod'), ts); }
+// Call after any write so other devices know data changed, and so this
+// device's cache is marked current (no redundant re-fetch on next load).
+async function touchSyncMeta(){
+  if(!_currentUser) return;
+  const ts=new Date().toISOString();
+  try{
+    await _sb.from('sync_meta').upsert({user_id:_currentUser.id, last_modified:ts, last_device:DEVICE_ID},{onConflict:'user_id'});
+    setCachedLastMod(ts);
+  }catch(e){ console.warn('sync_meta update failed', e); }
+}
+
 const S = {
   answers: {},
   kills: {},
@@ -2532,6 +2580,10 @@ function setSyncStatus(s){
   }
 }
 
+// Columns to fetch in bulk loads — excludes the 3 heavy screenshot jsonb
+// columns, which are fetched per-trade on demand via loadTradeScreenshots().
+const LIGHT_TRADE_COLS = 'id,user_id,status,is_intraday,weekly_link_id,date,pair,session,trade_type,score,grade,bias_set,bias_played,bias_match,result,tp2r,tp15r,idea_notes,update_notes,close_notes,followup_notes,entry_price,close_price,sl_price,tp_price,lot_size,open_time,close_time,tags,checklist_answers,checklist_kills,checklist_model';
+
 function tradeToDb(t){
   const row = {
     id:t.id, user_id:_currentUser.id, status:t.status,
@@ -2544,11 +2596,17 @@ function tradeToDb(t){
     entry_price:t.entryPrice||null, close_price:t.closePrice||null,
     sl_price:t.slPrice||null, tp_price:t.tpPrice||null,
     open_time:t.openTime, close_time:t.closeTime||null,
-    tags:t.tags||[], screenshots:t.screenshots||[],
-    eod_screenshots:t.eodScreenshots||[], followup_screenshots:t.followupScreenshots||[],
+    tags:t.tags||[],
     checklist_answers:t.checklistAnswers||{}, checklist_kills:t.checklistKills||{},
 
   };
+  // Only send screenshot columns if they were actually loaded into memory for
+  // this trade — otherwise we'd overwrite existing DB screenshots with [].
+  if(t._ssLoaded){
+    row.screenshots = t.screenshots||[];
+    row.eod_screenshots = t.eodScreenshots||[];
+    row.followup_screenshots = t.followupScreenshots||[];
+  }
   // lot_size is only set from intraday ideas — only include if present to avoid schema errors
   if(t.lotSize!=null) row.lot_size = t.lotSize;
   if(t.checklistModel!=null) row.checklist_model = t.checklistModel; // Add column: ALTER TABLE trades ADD COLUMN IF NOT EXISTS checklist_model text DEFAULT 'omar'
@@ -2564,11 +2622,26 @@ function dbToTrade(r){
     closeNotes:r.close_notes||'', followupNotes:r.followup_notes||'',
     entryPrice:r.entry_price, closePrice:r.close_price, slPrice:r.sl_price, tpPrice:r.tp_price, lotSize:r.lot_size||null,
     openTime:r.open_time, closeTime:r.close_time,
-    tags:r.tags||[], screenshots:r.screenshots||[],
-    eodScreenshots:r.eod_screenshots||[], followupScreenshots:r.followup_screenshots||[],
+    tags:r.tags||[],
+    // Screenshot fields are absent from light (bulk) queries — undefined means
+    // "not loaded yet" vs [] meaning "loaded and empty".
+    screenshots:r.screenshots||[], eodScreenshots:r.eod_screenshots||[], followupScreenshots:r.followup_screenshots||[],
+    _ssLoaded: r.screenshots!==undefined,
     checklistAnswers:r.checklist_answers||{}, checklistKills:r.checklist_kills||{},
     checklistModel:r.checklist_model||'omar',
   };
+}
+// Fetch the 3 screenshot columns for a single trade, on demand.
+async function loadTradeScreenshots(id){
+  const t=S.trades.find(x=>Number(x.id)===Number(id)); if(!t) return t;
+  if(t._ssLoaded) return t;
+  try{
+    const {data,error}=await _sb.from('trades').select('screenshots,eod_screenshots,followup_screenshots').eq('id',id).eq('user_id',_currentUser.id).single();
+    if(error) throw error;
+    t.screenshots=data.screenshots||[]; t.eodScreenshots=data.eod_screenshots||[]; t.followupScreenshots=data.followup_screenshots||[];
+    t._ssLoaded=true;
+  }catch(e){ console.warn('Screenshot load error',e); }
+  return t;
 }
 function weeklyToDb(w){
   return {
@@ -2586,28 +2659,64 @@ function dbToWeekly(r){
   };
 }
 
-async function loadAllData(){
+async function loadAllData(force){
   if(!_currentUser) return;
   setSyncStatus('syncing');
   try{
-    const [tr, wr] = await Promise.all([
-      _sb.from('trades').select('*').eq('user_id',_currentUser.id).order('created_at',{ascending:false}),
-      _sb.from('weeklies').select('*').eq('user_id',_currentUser.id).order('created_at',{ascending:false})
+    // Tiny request: just the timestamp of the last write by ANY device.
+    const {data:meta,error:metaErr}=await _sb.from('sync_meta').select('last_modified').eq('user_id',_currentUser.id).maybeSingle();
+    if(metaErr) throw metaErr;
+    const serverLastMod = meta?meta.last_modified:null;
+    const cachedLastMod = getCachedLastMod();
+
+    if(!force && serverLastMod && serverLastMod===cachedLastMod && loadLocalCache()){
+      // Our local copy is already current — skip the heavy fetch entirely.
+      setSyncStatus('synced');
+      updateSyncBar();
+      renderDashboard(); renderOpen(); updateOpenBadge();
+      if(typeof updateWeeklyBadge==='function') updateWeeklyBadge();
+      if(typeof updateIntradayBadge==='function') updateIntradayBadge();
+      if(typeof refreshIntraWeeklyDropdown==='function') refreshIntraWeeklyDropdown();
+      renderNotes();
+      showToast('✓ Up to date (cached)');
+      return;
+    }
+
+    // Cache missing or stale — pull everything fresh.
+    const [tr, wr, nr] = await Promise.all([
+      _sb.from('trades').select(LIGHT_TRADE_COLS).eq('user_id',_currentUser.id).order('created_at',{ascending:false}),
+      _sb.from('weeklies').select('*').eq('user_id',_currentUser.id).order('created_at',{ascending:false}),
+      _sb.from('notes').select('*').eq('user_id',_currentUser.id).order('updated_at',{ascending:false})
     ]);
     if(tr.error) throw tr.error;
     if(wr.error) throw wr.error;
+    if(nr.error) throw nr.error;
     S.trades = (tr.data||[]).map(dbToTrade);
     S.weeklies = (wr.data||[]).map(dbToWeekly);
+    S.notes = (nr.data||[]).map(dbToNote);
+
+    if(serverLastMod){ setCachedLastMod(serverLastMod); }
+    else { await touchSyncMeta(); } // first run ever for this account — seed sync_meta
+    saveLocalCache();
+
     setSyncStatus('synced');
     updateSyncBar();
     renderDashboard(); renderOpen(); updateOpenBadge();
     if(typeof updateWeeklyBadge==='function') updateWeeklyBadge();
     if(typeof updateIntradayBadge==='function') updateIntradayBadge();
     if(typeof refreshIntraWeeklyDropdown==='function') refreshIntraWeeklyDropdown();
-    await loadNotes(); // load notes alongside trades — no monkey-patch needed
+    renderNotes();
     showToast('✓ Data synced');
   }catch(e){
     setSyncStatus('error'); showToast('Sync error: '+e.message,'err');
+    // Fall back to whatever we have cached so the app still works offline.
+    if(loadLocalCache()){
+      renderDashboard(); renderOpen(); updateOpenBadge();
+      if(typeof updateWeeklyBadge==='function') updateWeeklyBadge();
+      if(typeof updateIntradayBadge==='function') updateIntradayBadge();
+      if(typeof refreshIntraWeeklyDropdown==='function') refreshIntraWeeklyDropdown();
+      renderNotes();
+    }
   }
 }
 
@@ -2616,26 +2725,30 @@ async function saveTrade(t){
   setSyncStatus('syncing');
   const {error}=await _sb.from('trades').upsert(tradeToDb(t),{onConflict:'id'});
   if(error){setSyncStatus('error');showToast('Save error: '+error.message,'err');return false;}
+  await touchSyncMeta(); saveLocalCache();
   setSyncStatus('synced'); return true;
 }
 async function deleteTradeSupa(id){
   if(!_currentUser) return;
   await _sb.from('trades').delete().eq('id',id).eq('user_id',_currentUser.id);
+  await touchSyncMeta(); saveLocalCache();
 }
 async function saveWeekly(w){
   if(!_currentUser) return false;
   setSyncStatus('syncing');
   const {error}=await _sb.from('weeklies').upsert(weeklyToDb(w),{onConflict:'id'});
   if(error){setSyncStatus('error');showToast('Save error: '+error.message,'err');return false;}
+  await touchSyncMeta(); saveLocalCache();
   setSyncStatus('synced'); return true;
 }
 async function deleteWeeklySupa(id){
   if(!_currentUser) return;
   await _sb.from('weeklies').delete().eq('id',id).eq('user_id',_currentUser.id);
+  await touchSyncMeta(); saveLocalCache();
 }
 
 // saveTrades() removed — data is always saved via saveTrade(t) per record
-async function manualSync(){ await loadAllData(); }
+async function manualSync(){ await loadAllData(true); }
 
 function updateSyncBar(){
   const now=new Date();
@@ -3271,7 +3384,7 @@ function saveIdeaAsOpen(){
     updateNotes:'', closeNotes:'', followupNotes:'',
     entryPrice:null, closePrice:null, slPrice:null, tpPrice:null, lotSize:null,
     openTime:new Date().toISOString(), closeTime:null,
-    screenshots:[...S.ideaSS], eodScreenshots:[], followupScreenshots:[],
+    screenshots:[...S.ideaSS], eodScreenshots:[], followupScreenshots:[], _ssLoaded:true,
     checklistAnswers:{...S.answers},
     checklistKills:{...S.kills},
     checklistModel: S.ideaModel,
@@ -3327,8 +3440,9 @@ function addSsToOpenTrade(id){
   const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.multiple=true;
   inp.onchange=e=>{
     Array.from(e.target.files).forEach(f=>{
-      const r=new FileReader(); r.onload=ev=>{
+      const r=new FileReader(); r.onload=async ev=>{
         const t=S.trades.find(t=>Number(t.id)===Number(id)); if(!t) return;
+        await loadTradeScreenshots(t.id); // ensure full existing list is loaded before we overwrite
         t.screenshots=t.screenshots||[];
         t.screenshots.push({id:crypto.randomUUID(), name:f.name, dataUrl:ev.target.result, label:'Trade Chart', at:new Date().toLocaleString()});
         saveTrade(t); renderOpen();
@@ -3527,7 +3641,7 @@ function openEditOpenModal(id){
   document.getElementById('eoiSsGrid').innerHTML='';
   document.getElementById('editOpenModal').classList.add('open');
 }
-function saveEditOpen(){
+async function saveEditOpen(){
   const t=S.trades.find(t=>Number(t.id)===Number(S.eoiEditId)); if(!t) return;
   t.pair=document.getElementById('eoiPair').value.trim()||t.pair;
   t.date=document.getElementById('eoiDate').value||t.date;
@@ -3539,7 +3653,7 @@ function saveEditOpen(){
   t.slPrice=slVal===''?null:parseFloat(slVal)||t.slPrice;
   t.closePrice=closeVal===''?null:parseFloat(closeVal)||t.closePrice;
   t.updateNotes=rteGet('eoiNotes').trim();
-  if(S.eoiSS.length>0) t.screenshots=[...(t.screenshots||[]),...S.eoiSS];
+  if(S.eoiSS.length>0){ await loadTradeScreenshots(t.id); t.screenshots=[...(t.screenshots||[]),...S.eoiSS]; t._ssLoaded=true; }
   saveTrade(t);
   document.getElementById('editOpenModal').classList.remove('open');
   S.eoiEditId=null; S.eoiSS=[];
@@ -3590,7 +3704,7 @@ function updateCmAutoResult(){
   else if(profit<0){ el.textContent='LOSS '+(rVal?'· '+rVal:''); el.style.color='var(--bear)'; }
   else { el.textContent='BREAK EVEN · 0R'; el.style.color='var(--gold)'; }
 }
-function saveClosure(){
+async function saveClosure(){
   if(!S.cmData.biasPlayed){alert('Select bias that played out.');return;}
   const t=S.trades.find(t=>Number(t.id)===Number(S.cmEditId)); if(!t) return;
   const entryVal=parseFloat(document.getElementById('cmEntry').value)||t.entryPrice;
@@ -3612,7 +3726,9 @@ function saveClosure(){
   t.entryPrice=entryVal; t.closePrice=closeVal; t.slPrice=slVal;
   t.closeNotes=rteGet('cmNotes').trim();
   t.closeTime=new Date().toISOString();
+  await loadTradeScreenshots(t.id);
   t.eodScreenshots=[...(t.eodScreenshots||[]),...S.cmSS];
+  t._ssLoaded=true;
   saveTrade(t);
 
   // ── Auto-close linked trades ──
@@ -3702,7 +3818,7 @@ function updateEcAutoResult(){
   else if(profit<0){ el.textContent='LOSS '+(rVal?'· '+rVal:''); el.style.color='var(--bear)'; }
   else { el.textContent='BREAK EVEN · 0R'; el.style.color='var(--gold)'; }
 }
-function saveEditClosed(){
+async function saveEditClosed(){
   const t=S.trades.find(t=>Number(t.id)===Number(S.ecEditId)); if(!t) return;
   // Only apply manual result override if it's a SKIP
   if(S.ecData.result==='SKIP') t.result=S.ecData.result;
@@ -3719,7 +3835,7 @@ function saveEditClosed(){
     t.result = profit > 0 ? 'WIN' : profit < 0 ? 'LOSS' : 'BE';
   }
   t.followupNotes=rteGet('ecFollowup').trim();
-  if(S.ecSS.length>0) t.followupScreenshots=[...(t.followupScreenshots||[]),...S.ecSS];
+  if(S.ecSS.length>0){ await loadTradeScreenshots(t.id); t.followupScreenshots=[...(t.followupScreenshots||[]),...S.ecSS]; t._ssLoaded=true; }
   // recalc bias match
   t.biasMatch=(t.biasSet&&t.biasPlayed&&t.biasSet===t.biasPlayed)?'YES':'NO';
   saveTrade(t);
@@ -4639,7 +4755,7 @@ function saveIntradayIdea(){
     tpPrice:parseFloat(document.getElementById('intraTP').value)||null,
     lotSize:parseFloat(document.getElementById('intraLot').value)||null,
     openTime:new Date().toISOString(), closeTime:null,
-    screenshots:[...S.intraSS], eodScreenshots:[], followupScreenshots:[],
+    screenshots:[...S.intraSS], eodScreenshots:[], followupScreenshots:[], _ssLoaded:true,
     checklistAnswers:{...S.intraAnswers},
     checklistKills:{...S.intraKills},
     tags:[...S.intraTags],
@@ -4679,6 +4795,31 @@ function updateIntradayBadge(){
 }
 
 // ── Consolidated renderOpen (replaces original + tag/badge patch) ──
+// Renders a collapsed placeholder; screenshots are fetched from Supabase
+// only when the user taps it (keeps initial page loads cheap on egress).
+function ssLazySection(id){
+  const t=S.trades.find(x=>Number(x.id)===Number(id));
+  if(t&&t._ssLoaded){
+    const allSS=[...(t.screenshots||[]),...(t.eodScreenshots||[])];
+    if(allSS.length===0) return '';
+    const ssHtml=allSS.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('');
+    return `<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`;
+  }
+  return `<div style="margin-bottom:10px">
+    <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:4px" onclick="toggleTradeScreenshots(${id})">📷 SCREENSHOTS <span style="text-decoration:underline">TAP TO LOAD</span></div>
+    <div id="ss-section-${id}"></div>
+  </div>`;
+}
+async function toggleTradeScreenshots(id){
+  const sec=document.getElementById('ss-section-'+id); if(!sec) return;
+  sec.innerHTML='<div style="font-size:9px;color:var(--muted);padding:4px 0">Loading…</div>';
+  const t=await loadTradeScreenshots(id);
+  const allSS=[...(t.screenshots||[]),...(t.eodScreenshots||[])];
+  if(allSS.length===0){ sec.innerHTML='<div style="font-size:9px;color:var(--muted);padding:4px 0">No screenshots</div>'; return; }
+  const ssHtml=allSS.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('');
+  sec.innerHTML=`<div class="ss-grid" style="margin-top:6px">${ssHtml}</div>`;
+}
+
 function renderOpen(){
   // Intraday records are execution details — only show parent trades as top-level cards.
   // Linked intraday ideas appear as sub-cards inside their parent's card.
@@ -4693,8 +4834,6 @@ function renderOpen(){
 
   function tradeCard(t){
     const gc=gradeClass(t.grade);
-    const allSS=[...(t.screenshots||[]),...(t.eodScreenshots||[])];
-    const ssHtml=allSS.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('');
     const tagHtml=(t.tags||[]).map(tag=>`<span class="tag ${tag==='weekly'?'tag-weekly':tag==='intraday'?'tag-intraday':'tag-custom'}">#${tag}</span>`).join('');
     const isWeekly=(t.tags||[]).includes('weekly');
     const borderColor = isWeekly?'#9fa8da':'var(--gold)';
@@ -4761,7 +4900,6 @@ function renderOpen(){
           <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.5px;color:#283593;text-transform:uppercase;margin-bottom:6px;">⚡ LINKED INTRADAY EXECUTION (${linkedIntra.length})</div>
           ${linkedIntra.map(it=>{
             const itGc=gradeClass(it.grade);
-            const itSS=[...(it.screenshots||[]),...(it.eodScreenshots||[])];
             const itBiasColor=it.biasSet==='BULLISH'?'var(--bull)':it.biasSet==='BEARISH'?'var(--bear)':'var(--muted)';
             return`<div class="intra-sub">
               <div class="intra-sub-head" onclick="toggleIntraSub(${it.id})">
@@ -4786,7 +4924,7 @@ function renderOpen(){
                   <div class="otc-field"><label>TP Target</label><input type="number" step="any" placeholder="0.00000" value="${it.tpPrice||''}" onchange="patchOpen(${it.id},'tpPrice',this.value)"></div>
                   <div class="otc-field"><label>Lot Size</label><input type="number" step="any" placeholder="0.00" value="${it.lotSize||''}" onchange="patchOpen(${it.id},'lotSize',this.value)"></div>
                 </div>
-                ${itSS.length>0?`<div style="margin-bottom:8px"><div class="ss-grid">${itSS.map(ss=>`<div class="ss-thumb" onclick="openLb('${ss.dataUrl}')"><img src="${ss.dataUrl}" alt=""><div class="ss-lbl">${ss.label||''}</div></div>`).join('')}</div></div>`:''}
+                ${ssLazySection(it.id)}
                 <div class="intra-sub-actions">
                   <button class="btn-gold" style="font-size:9px;padding:5px 10px;" onclick="openCloseModal(${it.id})">CLOSE ✓</button>
                   <button class="btn-primary" style="background:#283593;border-color:#283593;font-size:8px;padding:5px 10px;" onclick="openTradeNoteModal(${it.id})">+ NOTE</button>
@@ -4801,7 +4939,7 @@ function renderOpen(){
             </div>`;
           }).join('')}
         </div>`:''}
-        ${allSS.length>0?`<div style="margin-bottom:10px"><div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">Screenshots (${allSS.length})</div><div class="ss-grid">${ssHtml}</div></div>`:''}
+        ${ssLazySection(t.id)}
         <div class="otc-actions">
           <button class="btn-gold" onclick="openCloseModal(${t.id})">CLOSE TRADE ✓</button>
           ${!t.isIntraday?`<button class="btn-primary" style="background:#1b5e20;border-color:#1b5e20;font-size:8px" onclick="openIntraForTrade(${t.id})">⚡ INTRADAY IDEA</button>`:''}
@@ -4875,6 +5013,7 @@ async function saveNoteToDb(n){
   try{
     const {error}=await _sb.from('notes').upsert(noteToDb(n),{onConflict:'id'});
     if(error) throw error;
+    await touchSyncMeta(); saveLocalCache();
   } catch(e){ console.warn('Note save error',e); }
 }
 
@@ -4882,6 +5021,7 @@ async function deleteNoteFromDb(id){
   try{
     const {error}=await _sb.from('notes').delete().eq('id',id).eq('user_id',_currentUser.id);
     if(error) throw error;
+    await touchSyncMeta(); saveLocalCache();
   } catch(e){ console.warn('Note delete error',e); }
 }
 
@@ -5260,11 +5400,13 @@ function stripHtml(html){
   return html.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
 }
 
-function openTradeHistory(id){
+async function openTradeHistory(id){
   const t=S.trades.find(t=>Number(t.id)===Number(id)); if(!t) return;
   // Use filter() so ALL linked intraday trades are shown, not just the first
   const intras=S.trades.filter(it=>it.isIntraday&&Number(it.weeklyLinkId)===Number(t.id));
   const intra=intras[0]||null; // first one used for backward-compat single-intra display
+  // Lazily fetch screenshot data for this trade + any linked intraday trades.
+  await Promise.all([loadTradeScreenshots(t.id), ...intras.map(it=>loadTradeScreenshots(it.id))]);
   _thId=id; _thNewSS=[];
   document.getElementById('thNoteInput').innerHTML='';
   document.getElementById('thSsPreview').innerHTML='';
@@ -5406,9 +5548,11 @@ function dataUrlToFile(dataUrl, filename){
   return new File([u8], filename, {type:mime});
 }
 
-function shareOpenTrade(id){
+async function shareOpenTrade(id){
   const t=S.trades.find(t=>Number(t.id)===Number(id)); if(!t) return;
   const intra=(S.trades||[]).filter(it=>it.isIntraday&&Number(it.weeklyLinkId)===Number(t.id)&&it.status==='open');
+  // Lazily fetch screenshot data so the share includes attached images.
+  await Promise.all([loadTradeScreenshots(t.id), ...intra.map(it=>loadTradeScreenshots(it.id))]);
 
   const div = '────────────────────────────';
   const fmt = label => label.toUpperCase();
