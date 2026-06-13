@@ -2677,6 +2677,7 @@ async function loadAllData(force){
       if(typeof updateWeeklyBadge==='function') updateWeeklyBadge();
       if(typeof updateIntradayBadge==='function') updateIntradayBadge();
       if(typeof refreshIntraWeeklyDropdown==='function') refreshIntraWeeklyDropdown();
+      if(typeof loadCoreRules==='function') loadCoreRules();
       renderNotes();
       showToast('✓ Up to date (cached)');
       return;
@@ -2705,6 +2706,7 @@ async function loadAllData(force){
     if(typeof updateWeeklyBadge==='function') updateWeeklyBadge();
     if(typeof updateIntradayBadge==='function') updateIntradayBadge();
     if(typeof refreshIntraWeeklyDropdown==='function') refreshIntraWeeklyDropdown();
+    if(typeof loadCoreRules==='function') loadCoreRules();
     renderNotes();
     showToast('✓ Data synced');
   }catch(e){
@@ -5250,13 +5252,35 @@ setTimeout(renderMiniCalendar, 300);
   const STORAGE_KEY='ict_core_rules';
   let rulesOpen=true;
 
+  // In-memory copy populated from Supabase on load (see loadAllData / loadCoreRules).
+  // Falls back to localStorage so rules render instantly before sync completes.
   function loadRules(){
+    if(S.coreRules) return S.coreRules;
     try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); }
     catch(e){ return []; }
   }
   function saveRulesData(arr){
+    S.coreRules=arr;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
   }
+  async function saveRulesToSupa(arr){
+    if(!_currentUser) return;
+    try{
+      const {error}=await _sb.from('core_rules').upsert({user_id:_currentUser.id, rules:arr},{onConflict:'user_id'});
+      if(error) throw error;
+      await touchSyncMeta();
+    }catch(e){ console.warn('Core rules sync error',e); }
+  }
+  // Called once after login (see loadAllData) to pull rules set on other devices.
+  window.loadCoreRules=async function(){
+    if(!_currentUser) return;
+    try{
+      const {data,error}=await _sb.from('core_rules').select('rules').eq('user_id',_currentUser.id).maybeSingle();
+      if(error) throw error;
+      if(data) saveRulesData(data.rules||[]);
+      renderCoreRules();
+    }catch(e){ console.warn('Core rules load error',e); }
+  };
   function renderCoreRules(){
     const rules=loadRules();
     const ol=document.getElementById('coreRulesOl');
@@ -5304,10 +5328,13 @@ setTimeout(renderMiniCalendar, 300);
     if(!ta) return;
     const rules=ta.value.split('\n').map(r=>r.trim()).filter(r=>r.length>0);
     saveRulesData(rules);
+    saveRulesToSupa(rules);
     renderCoreRules();
     closeCoreRulesModal();
     if(window.showToast) showToast('Core rules saved ✓');
   };
+
+  window.renderCoreRules=renderCoreRules;
 
   document.addEventListener('click',function(e){
     const modal=document.getElementById('coreRulesModal');
