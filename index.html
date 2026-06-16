@@ -561,14 +561,9 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
       <span class="ni-icon">🗒️</span>
       <span class="ni-label">Notes</span>
     </button>
-    <div class="sidebar-section" style="margin-top:8px;">Actions</div>
-    <button class="nav-item" onclick="exportExcel()">
-      <span class="ni-icon">⬇</span>
-      <span class="ni-label">Export Excel</span>
-    </button>
-    <button class="nav-item" onclick="openDriveModal()">
-      <span class="ni-icon">☁</span>
-      <span class="ni-label">Database Status</span>
+    <button class="nav-item" id="navitem-settings" onclick="navTo('settings')">
+      <span class="ni-icon">⚙️</span>
+      <span class="ni-label">Settings</span>
     </button>
     <div class="sidebar-footer">
       <p>ICT Trading Journal<br>D · 4H · 1H Scored<br><span id='sbUserEmail' style='color:#6a6050'></span></p>
@@ -582,21 +577,12 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
     <div class="page active" id="page-home">
     <div class="shell">
       <div id="installBannerWrap"></div>
-      <div class="drive-bar" id="driveBar" style="cursor:pointer" onclick="openDriveModal()">
-        <div class="drive-dot off" id="driveDot"></div>
-        <div style="flex:1">
-          <div style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:1px">SUPABASE</div>
-          <div id="driveBarText" style="font-size:11px">Not yet synced — tap to check</div>
-        </div>
-        <div id="syncTimeDisplay" style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);text-align:right;flex-shrink:0"></div>
-      </div>
+      <!-- hidden elements kept for JS refs -->
+      <div id="driveBar" style="display:none"><div class="drive-dot off" id="driveDot"></div><div id="driveBarText"></div><div id="syncTimeDisplay"></div></div>
 
       <div class="sec-head">
         <h2>DASHBOARD</h2>
         <p>Performance overview</p>
-        <div class="sec-head-actions">
-          <button class="btn-ghost btn-sm" onclick="exportExcel()">⬇ EXCEL</button>
-        </div>
       </div>
 
       <!-- Forex Heatmap Widget -->
@@ -676,10 +662,7 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
           <span class="qt-icon">📋</span>
           <div><div class="qt-label">CLOSED TRADES</div><div class="qt-sub">Review history</div></div>
         </button>
-        <button class="qn-tile" onclick="exportExcel()" style="background:#1a2a3a">
-          <span class="qt-icon">⬇</span>
-          <div><div class="qt-label">EXPORT EXCEL</div><div class="qt-sub">Download trade log</div></div>
-        </button>
+
       </div>
 
       <!-- Stats -->
@@ -1008,9 +991,6 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
     <div class="shell">
       <div class="sec-head">
         <h2>CLOSED TRADES</h2>
-        <div class="sec-head-actions">
-          <button class="btn-ghost btn-sm" onclick="exportExcel()">⬇ EXCEL</button>
-        </div>
       </div>
       <div class="search-row">
         <input class="search-input" id="closedSearch" placeholder="Search pair, notes…" oninput="renderClosed()">
@@ -1046,6 +1026,82 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
         </div>
       </div>
       <div id="notesContainer"><div class="empty-state">No notes yet — tap <strong>+ NEW NOTE</strong> to add one.</div></div>
+    </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="page" id="page-settings">
+    <div class="shell">
+      <div class="sec-head">
+        <h2>SETTINGS</h2>
+        <p>App preferences &amp; management</p>
+      </div>
+
+      <!-- Database Status -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">DATABASE</div>
+        <div style="padding:14px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <div class="drive-dot off" id="settingsDbDot" style="width:10px;height:10px;flex-shrink:0;"></div>
+            <div style="font-family:'Azeret Mono',monospace;font-size:11px;font-weight:700;" id="settingsDbStatus">Checking…</div>
+          </div>
+          <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;" id="settingsDbDetail">—</div>
+          <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:14px;" id="settingsLastSync">—</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="settingsForceSync(this)" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:7px 14px;border:1.5px solid var(--border);background:transparent;color:var(--ink);border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:5px;">⟳ FORCE SYNC</button>
+            <button onclick="openDriveModal()" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:7px 14px;border:1.5px solid var(--border);background:transparent;color:var(--ink);border-radius:4px;cursor:pointer;">☁ FULL STATUS</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Account -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">ACCOUNT</div>
+        <div style="padding:14px;">
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:2px;">SIGNED IN AS</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:14px;" id="settingsUserEmail">—</div>
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:2px;">DEVICE ID</div>
+          <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--ink);margin-bottom:14px;word-break:break-all;opacity:0.6;" id="settingsDeviceId">—</div>
+          <button onclick="doLogout()" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:7px 16px;border:1.5px solid var(--bear);background:transparent;color:var(--bear);border-radius:4px;cursor:pointer;width:100%;">⏻ SIGN OUT</button>
+        </div>
+      </div>
+
+      <!-- Screenshot Cache -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">SCREENSHOT CACHE</div>
+        <div style="padding:14px;">
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:10px;line-height:1.7;">
+            Stored on this device in IndexedDB — survives browser history clears and phone cleaner apps. Each device builds its own cache independently.
+          </div>
+          <div id="ssCachePersistBadge" style="font-family:'Azeret Mono',monospace;font-size:8px;padding:5px 10px;border-radius:10px;background:#e8f5e9;color:#2e7d32;font-weight:700;display:inline-block;margin-bottom:10px;">Checking…</div>
+          <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--ink);margin-bottom:14px;" id="ssCacheStatus">Loading…</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="refreshSsCacheInfo()" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:7px 14px;border:1.5px solid var(--border);background:transparent;color:var(--ink);border-radius:4px;cursor:pointer;">↻ REFRESH</button>
+            <button onclick="clearSsCache()" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:7px 14px;border:1.5px solid var(--bear);background:transparent;color:var(--bear);border-radius:4px;cursor:pointer;">✕ CLEAR CACHE</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Export -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px;">
+        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">DATA EXPORT</div>
+        <div style="padding:14px;">
+          <div style="font-family:'Azeret Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:12px;line-height:1.7;">Export all closed trades to Excel. Includes pair, date, grade, result, R-multiple, bias, and notes.</div>
+          <button onclick="exportExcel()" style="font-family:'Azeret Mono',monospace;font-size:8px;font-weight:700;padding:7px 16px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:4px;cursor:pointer;width:100%;">⬇ DOWNLOAD EXCEL</button>
+        </div>
+      </div>
+
+      <!-- About -->
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:30px;">
+        <div style="padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);font-family:'Azeret Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);">ABOUT</div>
+        <div style="padding:14px;">
+          <div style="font-family:'Azeret Mono',monospace;font-size:9px;color:var(--ink);line-height:1.9;">
+            ICT Trading Journal<br>
+            <span style="color:var(--muted);">D · 4H · 1H · Scored<br>Built for disciplined ICT execution</span>
+          </div>
+        </div>
+      </div>
+
     </div>
     </div>
 
@@ -1274,10 +1330,9 @@ body{font-family:'Familjen Grotesk',sans-serif;background:var(--paper);color:var
     </div>
     <div class="mono-label">Signed In As</div>
     <div style="font-size:13px;font-weight:600;margin-bottom:12px" id="modalUserEmail">—</div>
-    <div class="mono-label">Export</div>
-    <button class="btn-ghost" style="width:100%;margin-bottom:6px" onclick="exportExcel()">⬇ DOWNLOAD EXCEL</button>
-    <button class="btn-ghost" style="width:100%;margin-bottom:12px" onclick="manualSync()">⟳ SYNC NOW</button>
-    <button class="btn-ghost" style="width:100%;color:var(--bear);border-color:var(--bear)" onclick="doLogout()">⏻ SIGN OUT</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+      <button class="btn-ghost" style="flex:1" onclick="document.getElementById('driveModal').classList.remove('open');navTo('settings')">⚙ SETTINGS</button>
+    </div>
   </div>
 </div>
 </div>
@@ -2536,8 +2591,14 @@ async function doReset(){
 }
 async function doLogout(){
   if(!confirm('Sign out?')) return;
+  const userId = _currentUser?.id;
   await _sb.auth.signOut(); _currentUser=null;
-  S.trades=[]; S.weeklies=[];
+  S.trades=[]; S.weeklies=[]; S.notes=[]; S.coreRules=[];
+  // Clear the device cache so the next user on this device doesn't see stale data
+  if(userId){
+    const key = s => 'ict_cache_'+s+'_'+userId;
+    try{ ['trades','weeklies','notes','lastmod'].forEach(k=>localStorage.removeItem(key(k))); }catch(e){}
+  }
   document.getElementById('authScreen').style.display='flex';
 }
 function onLoggedIn(user){
@@ -2546,6 +2607,7 @@ function onLoggedIn(user){
   const emailEl=document.getElementById('sbUserEmail');
   if(emailEl) emailEl.textContent=user.email;
   document.querySelector('.topbar-brand p').textContent=user.email;
+  requestPersistentStorage(); // ask browser to protect IndexedDB cache from eviction
   loadAllData();
 }
 // Check existing session on page load
@@ -2637,11 +2699,35 @@ function dbToTrade(r){
 async function loadTradeScreenshots(id){
   const t=S.trades.find(x=>Number(x.id)===Number(id)); if(!t) return t;
   if(t._ssLoaded) return t;
+
+  // ── 1. Check IndexedDB cache first ──
+  const cached = await _ssDB.get(id);
+  if(cached){
+    t.screenshots        = cached.screenshots        || [];
+    t.eodScreenshots     = cached.eodScreenshots     || [];
+    t.followupScreenshots= cached.followupScreenshots|| [];
+    t._ssLoaded = true;
+    return t;
+  }
+
+  // ── 2. Cache miss — fetch from Supabase ──
   try{
-    const {data,error}=await _sb.from('trades').select('screenshots,eod_screenshots,followup_screenshots').eq('id',id).eq('user_id',_currentUser.id).single();
+    const {data,error}=await _sb.from('trades')
+      .select('screenshots,eod_screenshots,followup_screenshots')
+      .eq('id',id).eq('user_id',_currentUser.id).single();
     if(error) throw error;
-    t.screenshots=data.screenshots||[]; t.eodScreenshots=data.eod_screenshots||[]; t.followupScreenshots=data.followup_screenshots||[];
-    t._ssLoaded=true;
+    t.screenshots        = data.screenshots          || [];
+    t.eodScreenshots     = data.eod_screenshots      || [];
+    t.followupScreenshots= data.followup_screenshots || [];
+    t._ssLoaded = true;
+
+    // ── 3. Write to IDB so future opens are free ──
+    await _ssDB.set(id, {
+      screenshots:        t.screenshots,
+      eodScreenshots:     t.eodScreenshots,
+      followupScreenshots:t.followupScreenshots,
+      cachedAt:           new Date().toISOString(),
+    });
   }catch(e){ console.warn('Screenshot load error',e); }
   return t;
 }
@@ -2662,6 +2748,116 @@ function dbToWeekly(r){
     createdAt:r.created_at, closedAt:r.closed_at,
   };
 }
+
+// ════════════════════════════════════════════════════════
+// SCREENSHOT CACHE  — IndexedDB, persists across sessions
+// Key: tradeId (string). Value: {screenshots, eodScreenshots,
+// followupScreenshots, cachedAt}.
+// navigator.storage.persist() is requested on login so the
+// browser treats this origin as "persistent" and won't evict
+// under memory pressure or phone-cleaner apps.
+// ════════════════════════════════════════════════════════
+const _ssDB = (function(){
+  const DB_NAME  = 'ict_ss_cache';
+  const DB_VER   = 1;
+  const STORE    = 'screenshots';
+  let _db = null;
+
+  function open(){
+    return new Promise((res,rej)=>{
+      if(_db){ res(_db); return; }
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains(STORE))
+          db.createObjectStore(STORE); // key = tradeId string
+      };
+      req.onsuccess = e => { _db = e.target.result; res(_db); };
+      req.onerror   = e => { console.warn('IDB open error', e); rej(e); };
+    });
+  }
+  async function get(tradeId){
+    try{
+      const db = await open();
+      return new Promise((res,rej)=>{
+        const tx  = db.transaction(STORE,'readonly');
+        const req = tx.objectStore(STORE).get(String(tradeId));
+        req.onsuccess = () => res(req.result||null);
+        req.onerror   = () => rej(req.error);
+      });
+    }catch(e){ console.warn('IDB get error',e); return null; }
+  }
+  async function set(tradeId, payload){
+    try{
+      const db = await open();
+      return new Promise((res,rej)=>{
+        const tx  = db.transaction(STORE,'readwrite');
+        const req = tx.objectStore(STORE).put(payload, String(tradeId));
+        req.onsuccess = () => res(true);
+        req.onerror   = () => rej(req.error);
+      });
+    }catch(e){ console.warn('IDB set error',e); return false; }
+  }
+  async function remove(tradeId){
+    try{
+      const db = await open();
+      return new Promise((res,rej)=>{
+        const tx  = db.transaction(STORE,'readwrite');
+        const req = tx.objectStore(STORE).delete(String(tradeId));
+        req.onsuccess = () => res(true);
+        req.onerror   = () => rej(req.error);
+      });
+    }catch(e){ return false; }
+  }
+  async function clear(){
+    try{
+      const db = await open();
+      return new Promise((res,rej)=>{
+        const tx  = db.transaction(STORE,'readwrite');
+        const req = tx.objectStore(STORE).clear();
+        req.onsuccess = () => res(true);
+        req.onerror   = () => rej(req.error);
+      });
+    }catch(e){ return false; }
+  }
+  async function sizeInfo(){
+    try{
+      if(navigator.storage && navigator.storage.estimate){
+        const {usage,quota} = await navigator.storage.estimate();
+        return { usageMB:(usage/1024/1024).toFixed(1), quotaMB:(quota/1024/1024).toFixed(0) };
+      }
+    }catch(e){}
+    return null;
+  }
+  async function count(){
+    try{
+      const db = await open();
+      return new Promise((res)=>{
+        const tx  = db.transaction(STORE,'readonly');
+        const req = tx.objectStore(STORE).count();
+        req.onsuccess = () => res(req.result);
+        req.onerror   = () => res(0);
+      });
+    }catch(e){ return 0; }
+  }
+  return { get, set, remove, clear, sizeInfo, count };
+})();
+
+// Request persistent storage so OS/cleaner apps won't evict our IDB cache.
+async function requestPersistentStorage(){
+  if(!navigator.storage || !navigator.storage.persist) return;
+  try{
+    const already = await navigator.storage.persisted();
+    if(already) return; // already granted — nothing to do
+    const granted = await navigator.storage.persist();
+    if(granted){
+      console.log('Persistent storage granted — screenshot cache is protected.');
+    } else {
+      console.log('Persistent storage not granted — cache may be evicted under pressure.');
+    }
+  }catch(e){ console.warn('persist() error',e); }
+}
+
 
 async function loadAllData(force){
   if(!_currentUser) return;
@@ -2684,6 +2880,7 @@ async function loadAllData(force){
       if(typeof loadCoreRules==='function') loadCoreRules();
       renderNotes();
       showToast('✓ Up to date (cached)');
+      setTimeout(refreshSsCacheInfo, 800);
       return;
     }
 
@@ -2713,6 +2910,7 @@ async function loadAllData(force){
     if(typeof loadCoreRules==='function') loadCoreRules();
     renderNotes();
     showToast('✓ Data synced');
+    setTimeout(refreshSsCacheInfo, 800);
   }catch(e){
     setSyncStatus('error'); showToast('Sync error: '+e.message,'err');
     // Fall back to whatever we have cached so the app still works offline.
@@ -2731,12 +2929,23 @@ async function saveTrade(t){
   setSyncStatus('syncing');
   const {error}=await _sb.from('trades').upsert(tradeToDb(t),{onConflict:'id'});
   if(error){setSyncStatus('error');showToast('Save error: '+error.message,'err');return false;}
+  // If screenshots were part of this save, refresh the IDB cache for this trade
+  // so other sessions on this device serve the updated version immediately.
+  if(t._ssLoaded){
+    await _ssDB.set(t.id,{
+      screenshots:        t.screenshots        ||[],
+      eodScreenshots:     t.eodScreenshots     ||[],
+      followupScreenshots:t.followupScreenshots||[],
+      cachedAt:           new Date().toISOString(),
+    });
+  }
   await touchSyncMeta(); saveLocalCache();
   setSyncStatus('synced'); return true;
 }
 async function deleteTradeSupa(id){
   if(!_currentUser) return;
   await _sb.from('trades').delete().eq('id',id).eq('user_id',_currentUser.id);
+  await _ssDB.remove(id); // remove from IDB cache too
   await touchSyncMeta(); saveLocalCache();
 }
 async function saveWeekly(w){
@@ -2896,6 +3105,7 @@ function navTo(page){
   }
 
   if(page==='home') renderDashboard();
+  if(page==='settings') populateSettingsPage();
   if(page==='idea'){
     renderBiasCards(); renderEntrySection(); updateScoreStrip();
     const editMode=S.checklistMode==='edit';
@@ -3901,6 +4111,93 @@ function deleteTrade(id){
 // ════════════════════════════════════════════════
 // DASHBOARD
 // ════════════════════════════════════════════════
+// ── Settings Page ────────────────────────────────────────
+async function populateSettingsPage(){
+  // Account
+  const emailEl = document.getElementById('settingsUserEmail');
+  const deviceEl = document.getElementById('settingsDeviceId');
+  if(emailEl) emailEl.textContent = _currentUser?.email || '—';
+  if(deviceEl) deviceEl.textContent = DEVICE_ID || '—';
+
+  // Database status
+  const dotEl    = document.getElementById('settingsDbDot');
+  const statusEl = document.getElementById('settingsDbStatus');
+  const detailEl = document.getElementById('settingsDbDetail');
+  const syncEl   = document.getElementById('settingsLastSync');
+  if(statusEl) statusEl.textContent = 'Checking…';
+  try{
+    const {data,error} = await _sb.from('sync_meta').select('last_modified,last_device').eq('user_id',_currentUser.id).maybeSingle();
+    if(error) throw error;
+    if(dotEl){ dotEl.className='drive-dot on'; dotEl.style.width='10px'; dotEl.style.height='10px'; }
+    if(statusEl) statusEl.textContent = 'Connected to Supabase';
+    if(detailEl) detailEl.textContent = _currentUser?.email || '';
+    if(syncEl && data?.last_modified){
+      const d = new Date(data.last_modified);
+      const fromThisDevice = data.last_device === DEVICE_ID;
+      syncEl.textContent = 'Last sync: ' + d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) + (fromThisDevice?' (this device)':' (other device)');
+    }
+  }catch(e){
+    if(dotEl){ dotEl.className='drive-dot off'; dotEl.style.width='10px'; dotEl.style.height='10px'; }
+    if(statusEl) statusEl.textContent = 'Connection error';
+    if(detailEl) detailEl.textContent = e.message||'';
+  }
+
+  // Screenshot cache
+  refreshSsCacheInfo();
+}
+
+async function settingsForceSync(btn){
+  if(btn){ btn.textContent='Syncing…'; btn.disabled=true; }
+  await loadAllData(true);
+  if(btn){ btn.textContent='⟳ FORCE SYNC'; btn.disabled=false; }
+  populateSettingsPage();
+}
+
+
+async function refreshSsCacheInfo(){
+  const statusEl  = document.getElementById('ssCacheStatus');
+  const badgeEl   = document.getElementById('ssCachePersistBadge');
+  if(!statusEl) return;
+
+  const [cnt, size, persistent] = await Promise.all([
+    _ssDB.count(),
+    _ssDB.sizeInfo(),
+    navigator.storage?.persisted ? navigator.storage.persisted() : Promise.resolve(null),
+  ]);
+
+  statusEl.textContent = `${cnt} trade${cnt!==1?'s':''} cached${size?' · '+size.usageMB+' MB used / '+size.quotaMB+' MB quota':''}`;
+
+  if(badgeEl){
+    if(persistent===true){
+      badgeEl.textContent='🔒 PROTECTED — won\'t be evicted by OS or cleaner apps';
+      badgeEl.style.background='#e8f5e9'; badgeEl.style.color='#2e7d32';
+    } else if(persistent===false){
+      badgeEl.textContent='⚠️ NOT PROTECTED — may be cleared under storage pressure';
+      badgeEl.style.background='#fff8e1'; badgeEl.style.color='#e65100';
+    } else {
+      badgeEl.textContent='ℹ️ Persist API not supported in this browser';
+      badgeEl.style.background='#f5f5f5'; badgeEl.style.color='var(--muted)';
+    }
+  }
+}
+function toggleSsCachePanel(){
+  const body    = document.getElementById('ssCacheBody');
+  const chevron = document.getElementById('ssCacheChevron');
+  if(!body) return;
+  const open = body.style.display==='block';
+  body.style.display    = open?'none':'block';
+  if(chevron) chevron.style.transform = open?'':'rotate(180deg)';
+  if(!open) refreshSsCacheInfo();
+}
+async function clearSsCache(){
+  if(!confirm('Clear all cached screenshots on this device?\n\nThey will be re-downloaded from Supabase next time you open each trade. This frees local storage but increases future egress.')) return;
+  await _ssDB.clear();
+  // Also clear in-memory loaded flags so re-opens trigger a fresh fetch.
+  (S.trades||[]).forEach(t=>{ t._ssLoaded=false; t.screenshots=[]; t.eodScreenshots=[]; t.followupScreenshots=[]; });
+  await refreshSsCacheInfo();
+  showToast('Screenshot cache cleared ✓');
+}
+
 function renderDashboard(){
   // Exclude intraday records from all stats — they are execution details, not separate trades
   const closed=S.trades.filter(t=>t.status==='closed'&&!t.isIntraday);
