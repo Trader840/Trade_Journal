@@ -1,0 +1,4 @@
+/*
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-src 'self' https://*.tradingview.com https://s.tradingview.com;
+
