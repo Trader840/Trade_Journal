@@ -17321,28 +17321,32 @@
 
         // ── END NEWS MODULE v3 ──
 
-        // EC module — TradingView Economic Calendar via direct iframe
-        // Uses TV's confirmed working direct iframe URL (no script injection - SPA safe)
+        // EC module — TradingView Economic Calendar
+        // TV widget is loaded via official script embed pattern.
+        // We use an iframe pointing to TV's widget page directly — this is
+        // what TV's own script does internally, and works from any origin.
         const EC = {
             init: () => {
                 const container = document.getElementById('tvEcContainer');
                 if (!container || container.dataset.loaded) return;
                 container.dataset.loaded = '1';
-                const cfg = {
-                    colorTheme: 'light',
-                    isTransparent: true,
-                    locale: 'en',
-                    width: '100%',
-                    height: '500',
-                    importanceFilter: '-1,0,1,2',
-                    countryFilter: 'us,eu,gb,ch,jp,au,ca,nz,cn'
-                };
+                // Use TV's official widget page URL directly as an iframe src.
+                // This is identical to what TV's embed script does internally,
+                // but avoids the script-injection SPA problem entirely.
+                const params = [
+                    'colorTheme=light',
+                    'isTransparent=true',
+                    'locale=en',
+                    'importanceFilter=-1,0,1,2',
+                    'countryFilter=us,eu,gb,ch,jp,au,ca,nz,cn',
+                    'width=100%25',
+                    'height=500',
+                ].join('&');
                 const iframe = document.createElement('iframe');
-                iframe.src = 'https://s.tradingview.com/embed-widget/economic-calendar/?locale=en#' + encodeURIComponent(JSON.stringify(cfg));
+                iframe.src = `https://www.tradingview-widget.com/embed-widget/economic-calendar/?${params}`;
                 iframe.style.cssText = 'width:100%;height:500px;border:none;display:block;';
                 iframe.setAttribute('allowtransparency', 'true');
                 iframe.setAttribute('frameborder', '0');
-                iframe.setAttribute('scrolling', 'no');
                 container.innerHTML = '';
                 container.appendChild(iframe);
             },
