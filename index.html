@@ -4758,80 +4758,6 @@
             font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:1.5px;
         }
         .ec-panel-head-left { display:flex; align-items:center; gap:8px; }
-        .ec-week-toggle {
-            font-family:var(--font-mono); font-size:7px; font-weight:700; letter-spacing:1px;
-            padding:3px 10px; border-radius:3px; cursor:pointer;
-            background:transparent; color:var(--paper);
-            border:1px solid rgba(255,255,255,0.3);
-            transition:all .15s; text-transform:uppercase;
-        }
-        .ec-week-toggle:hover { background:rgba(255,255,255,0.12); }
-        .ec-week-toggle.active { background:var(--gold); border-color:var(--gold); color:var(--paper); }
-        .ec-status {
-            font-family:var(--font-mono); font-size:7px; color:var(--muted);
-            padding:5px 14px; background:var(--cream);
-            border-bottom:1px solid var(--border);
-            display:flex; align-items:center; gap:6px;
-        }
-        .ec-table-wrap { overflow-x:auto; }
-        .ec-table {
-            width:100%; border-collapse:collapse;
-            font-family:var(--font-mono); font-size:10px;
-        }
-        .ec-table th {
-            padding:7px 10px; text-align:left;
-            font-size:7px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
-            color:var(--muted); background:var(--cream);
-            border-bottom:1.5px solid var(--border);
-            white-space:nowrap;
-        }
-        .ec-table td {
-            padding:7px 10px; border-bottom:1px solid var(--border);
-            vertical-align:middle; white-space:nowrap;
-        }
-        .ec-table tr:last-child td { border-bottom:none; }
-        /* Row states */
-        .ec-row-past td { color:var(--muted); opacity:0.55; }
-        .ec-row-next td { background:var(--gold-lt) !important; }
-        .ec-row-next td:first-child {
-            border-left:3px solid var(--gold);
-            padding-left:7px;
-        }
-        .ec-row-today-header td {
-            background:var(--ink); color:var(--paper);
-            font-size:7px; font-weight:700; letter-spacing:1px;
-            padding:4px 10px;
-        }
-        /* Impact dots */
-        .ec-impact {
-            display:inline-block; width:9px; height:9px;
-            border-radius:50%; flex-shrink:0;
-            vertical-align:middle;
-        }
-        .ec-impact-high    { background:#e74c3c; }
-        .ec-impact-medium  { background:#e67e22; }
-        .ec-impact-low     { background:#f1c40f; }
-        .ec-impact-holiday { background:#95a5a6; }
-        /* Value cells */
-        .ec-val-actual   { color:#27ae60; font-weight:700; }
-        .ec-val-forecast { color:var(--ink); }
-        .ec-val-prev     { color:var(--muted); }
-        .ec-val-empty    { color:var(--border); }
-        /* CCY badge */
-        .ec-ccy {
-            font-family:var(--font-mono); font-size:8px; font-weight:700;
-            padding:2px 6px; border-radius:2px;
-            background:var(--cream); border:1px solid var(--border);
-            color:var(--ink);
-        }
-        /* State */
-        .ec-state {
-            padding:30px 16px; text-align:center;
-            font-family:var(--font-mono); font-size:9px;
-            color:var(--muted); letter-spacing:0.5px;
-        }
-        .ec-state-icon { font-size:24px; margin-bottom:8px; }
-
         /* ── Discord panels ── */
         .discord-panel-main {
             border:1.5px solid var(--border); border-radius:6px;
@@ -5724,28 +5650,15 @@
                         <!-- LEFT column: Economic Calendar + News Feed -->
                         <div class="news-left-col">
 
-                            <!-- Economic Calendar -->
+                            <!-- Economic Calendar — TradingView Widget -->
                             <div class="ec-panel" id="ecPanel">
                                 <div class="ec-panel-head">
                                     <div class="ec-panel-head-left">
                                         &#128197; ECONOMIC CALENDAR
                                     </div>
-                                    <div style="display:flex;align-items:center;gap:6px;">
-                                        <button class="ec-week-toggle active" id="ecTodayBtn" onclick="EC.showToday()">TODAY</button>
-                                        <button class="ec-week-toggle" id="ecWeekBtn" onclick="EC.showWeek()">THIS WEEK</button>
-                                    </div>
+                                    <span style="font-size:7px;opacity:0.5;letter-spacing:0.5px;">powered by TradingView</span>
                                 </div>
-                                <div class="ec-status" id="ecStatus">
-                                    <span id="ecStatusText">&#8212;</span>
-                                </div>
-                                <div class="ec-table-wrap">
-                                    <div id="ecBody">
-                                        <div class="ec-state">
-                                            <div class="ec-state-icon">&#128197;</div>
-                                            Loading calendar&hellip;
-                                        </div>
-                                    </div>
-                                </div>
+                                <div id="tvEcContainer" style="width:100%;height:500px;"></div>
                             </div>
 
                             <!-- Status bar -->
@@ -14419,19 +14332,12 @@
             let done = 0;
             for (const entry of urlEntries) {
                 try {
-                    // Check local blob_cache first to avoid re-pulling from Supabase Storage egress
-                    const cachedDataUrl = await _ssDB.getBlob(entry.path);
-                    if (cachedDataUrl) {
-                        const blob = dataUrlToFile(cachedDataUrl, entry.filename);
-                        blobMap.set(entry.path, { blob, tradeId: entry.tradeId, filename: entry.filename });
-                    } else {
-                        const signedUrl = await resolveStoragePath(entry.path);
-                        if (signedUrl) {
-                            const resp = await fetch(signedUrl);
-                            if (resp.ok) {
-                                const blob = await resp.blob();
-                                blobMap.set(entry.path, { blob, tradeId: entry.tradeId, filename: entry.filename });
-                            }
+                    const signedUrl = await resolveStoragePath(entry.path);
+                    if (signedUrl) {
+                        const resp = await fetch(signedUrl);
+                        if (resp.ok) {
+                            const blob = await resp.blob();
+                            blobMap.set(entry.path, { blob, tradeId: entry.tradeId, filename: entry.filename });
                         }
                     }
                 } catch (e) { console.warn('Screenshot download failed for', entry.path, e); }
@@ -17415,238 +17321,34 @@
 
         // ── END NEWS MODULE v3 ──
 
-        // ══════════════════════════════════════════════════════════
-        // ECONOMIC CALENDAR MODULE (EC)
-        // Data: Cloudflare Worker → Forex Factory JSON
-        // ══════════════════════════════════════════════════════════
-        const EC = (() => {
-            const CF_WORKER  = 'https://trade-journal.manly-kama840.workers.dev';
-            const CACHE_MS   = 30 * 60 * 1000;
-            const FLAG = { USD:'🇺🇸',EUR:'🇪🇺',GBP:'🇬🇧',JPY:'🇯🇵',CHF:'🇨🇭',
-                           AUD:'🇦🇺',CAD:'🇨🇦',NZD:'🇳🇿',CNY:'🇨🇳',XAU:'🥇',XAG:'🥈',
-                           WTI:'🛢️',OIL:'🛢️' };
-
-            let _events      = [];
-            let _lastFetched = null;
-            let _lastFailAt  = null;
-            const FAIL_COOLDOWN_MS = 90 * 1000; // don't retry FF for 90s after a failure
-            let _filter      = ['ALL'];
-            let _showWeek    = false;
-            let _fetching    = false;
-
-            // Union of currency codes for all currently selected instrument keys.
-            // null = no filtering (show all currencies) — used for ALL.
-            function _activeCurrencies() {
-                if (!_filter.length || _filter.includes('ALL')) return null;
-                const set = new Set();
-                _filter.forEach(key => {
-                    const inst = NEWS_INSTRUMENTS.find(i => i.key === key);
-                    if (inst && Array.isArray(inst.currencies)) {
-                        inst.currencies.forEach(c => set.add(c));
-                    }
-                });
-                return set.size ? [...set] : null;
-            }
-
-            function _impactClass(imp) {
-                const i = (imp||'').toLowerCase();
-                if (i === 'high')    return 'ec-impact ec-impact-high';
-                if (i === 'medium')  return 'ec-impact ec-impact-medium';
-                if (i === 'low')     return 'ec-impact ec-impact-low';
-                return 'ec-impact ec-impact-holiday';
-            }
-
-            function _val(v, cls) {
-                if (!v && v !== 0) return `<span class="ec-val-empty">—</span>`;
-                return `<span class="${cls}">${_esc(String(v))}</span>`;
-            }
-
-            function _esc(s) {
-                return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-            }
-
-            function _fmt(s) {
-                return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            }
-
-            function _timeStr(d) {
-                return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-            }
-
-            function _dateStr(d) {
-                return d.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' });
-            }
-
-            function _isToday(d) {
-                const now = new Date();
-                return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
-            }
-
-            function _isFuture(d) { return d > new Date(); }
-
-            function _filtered() {
-                const ccys = _activeCurrencies();
-                return _events.filter(e => {
-                    if (ccys && !ccys.includes((e.country||'').toUpperCase())) return false;
-                    return true;
-                });
-            }
-
-            function _render() {
-                const body = document.getElementById('ecBody');
-                if (!body) return;
-
-                const now      = new Date();
-                const events   = _filtered();
-                const todayEvs = events.filter(e => _isToday(e._date));
-                const display  = _showWeek ? events : todayEvs;
-
-                if (!display.length) {
-                    body.innerHTML = `<div class="ec-state">
-                        <div class="ec-state-icon">&#128197;</div>
-                        ${_showWeek ? 'No events this week' : 'No events today'} for selected filter
-                    </div>`;
-                    return;
-                }
-
-                // Find next upcoming event index
-                let nextIdx = -1;
-                for (let i = 0; i < display.length; i++) {
-                    if (_isFuture(display[i]._date)) { nextIdx = i; break; }
-                }
-
-                let html = `<table class="ec-table">
-                    <thead><tr>
-                        <th>Time</th><th>CCY</th><th>Impact</th><th>Event</th>
-                        <th>Actual</th><th>Forecast</th><th>Previous</th>
-                    </tr></thead><tbody>`;
-
-                let lastDay = '';
-                display.forEach((e, idx) => {
-                    const isPast = !_isFuture(e._date);
-                    const isNext = idx === nextIdx;
-                    const dayKey = _dateStr(e._date);
-                    const rowCls = isNext ? 'ec-row-next' : (isPast ? 'ec-row-past' : '');
-                    const flag   = FLAG[(e.country||'').toUpperCase()] || '🌐';
-
-                    // Day separator row (week view only)
-                    if (_showWeek && dayKey !== lastDay) {
-                        lastDay = dayKey;
-                        html += `<tr class="ec-row-today-header">
-                            <td colspan="7">${_esc(dayKey)}${_isToday(e._date) ? ' — TODAY' : ''}</td>
-                        </tr>`;
-                    }
-
-                    html += `<tr class="${rowCls}">
-                        <td style="font-family:var(--font-mono);font-size:9px;">${_esc(_timeStr(e._date))}</td>
-                        <td><span class="ec-ccy">${flag} ${_esc((e.country||'').toUpperCase())}</span></td>
-                        <td style="text-align:center;"><span class="${_impactClass(e.impact)}" title="${_esc(e.impact)}"></span></td>
-                        <td style="white-space:normal;min-width:130px;font-size:10px;">${_fmt(e.title||e.name||'')}</td>
-                        <td>${_val(e.actual,   'ec-val-actual')}</td>
-                        <td>${_val(e.forecast, 'ec-val-forecast')}</td>
-                        <td>${_val(e.previous, 'ec-val-prev')}</td>
-                    </tr>`;
-                });
-
-                html += '</tbody></table>';
-                body.innerHTML = html;
-            }
-
-            function _updateStatus() {
-                const el = document.getElementById('ecStatusText');
-                if (!el) return;
-                if (_fetching) { el.innerHTML = '<span class="nspin">&#x27F3;</span> Fetching calendar&hellip;'; return; }
-                if (!_lastFetched) { el.textContent = '—'; return; }
-                const m   = Math.floor((Date.now() - _lastFetched) / 60000);
-                const ago = m < 1 ? 'just now' : m + 'm ago';
-                const tot = _filtered().length;
-                el.textContent = `Updated ${ago} · ${tot} event${tot!==1?'s':''} · Impact: 🔴 High 🟠 Medium 🟡 Low`;
-            }
-
-            async function _fetch() {
-                if (_fetching) return;
-                // Use cache if fresh
-                if (_lastFetched && Date.now() - _lastFetched < CACHE_MS) { _render(); _updateStatus(); return; }
-                // Cooldown after a failure — avoid retry-storms that trigger FF's rate limit
-                if (_lastFailAt && Date.now() - _lastFailAt < FAIL_COOLDOWN_MS) { _render(); _updateStatus(); return; }
-                _fetching = true;
-                _updateStatus();
-                try {
-                    const r = await fetch(`${CF_WORKER}/ff-calendar`);
-                    if (r.status === 429) {
-                        const errBody = await r.json().catch(()=>({}));
-                        throw new Error(errBody.error || 'Forex Factory rate-limited this request. Try again shortly.');
-                    }
-                    if (!r.ok) {
-                        const errBody = await r.json().catch(()=>({}));
-                        throw new Error(errBody.error || ('HTTP ' + r.status));
-                    }
-                    const raw = await r.json();
-                    if (!Array.isArray(raw) || !raw.length) {
-                        throw new Error('Calendar returned no events — worker may be rate-limited. Try refreshing in a few minutes.');
-                    }
-                    // Normalise: parse date strings to Date objects.
-                    // Some FF date strings can fail to parse depending on the
-                    // browser/WebView's Date parser leniency — guard against
-                    // Invalid Date silently nuking every comparison downstream.
-                    let invalidCount = 0;
-                    _events = raw.map(e => {
-                        let d = new Date(e.date);
-                        if (isNaN(d.getTime())) {
-                            // Fallback: try replacing space with 'T' / normalising common FF variants
-                            const alt = (e.date || '').replace(' ', 'T');
-                            d = new Date(alt);
-                        }
-                        if (isNaN(d.getTime())) invalidCount++;
-                        return { ...e, _date: d };
-                    }).filter(e => !isNaN(e._date.getTime()))
-                      .sort((a,b) => a._date - b._date);
-
-                    if (invalidCount > 0) {
-                        console.warn(`[EC] ${invalidCount} event(s) had unparseable dates and were dropped.`);
-                    }
-                    if (!_events.length) {
-                        throw new Error('Calendar data arrived but all event dates failed to parse. Check console for details.');
-                    }
-                    _lastFetched = Date.now();
-                    console.info('[EC] Loaded', _events.length, 'events. Sample:', _events[0]);
-                    console.info('[EC] Today is', new Date().toString());
-                } catch(err) {
-                    console.error('[EC] Fetch error:', err);
-                    _lastFailAt = Date.now();
-                    const body = document.getElementById('ecBody');
-                    if (body && !_events.length) {
-                        body.innerHTML = `<div class="ec-state">
-                            <div class="ec-state-icon">&#9888;</div>
-                            ${_esc(err.message || 'Failed to load calendar.')}
-                        </div>`;
-                    }
-                } finally {
-                    _fetching = false;
-                    _render();
-                    _updateStatus();
-                }
-            }
-
-            function init()          { _fetch(); }
-            function setFilter(keys) { _filter = Array.isArray(keys) ? keys : [keys]; if (!_filter.length) _filter = ['ALL']; _render(); _updateStatus(); }
-            function refreshCustomAssets() { _render(); _updateStatus(); }
-            function showToday()     {
-                _showWeek = false;
-                document.getElementById('ecTodayBtn')?.classList.add('active');
-                document.getElementById('ecWeekBtn')?.classList.remove('active');
-                _render();
-            }
-            function showWeek()      {
-                _showWeek = true;
-                document.getElementById('ecWeekBtn')?.classList.add('active');
-                document.getElementById('ecTodayBtn')?.classList.remove('active');
-                _render();
-            }
-
-            return { init, setFilter, showToday, showWeek, refreshCustomAssets };
-        })();
-
+        // EC module — TradingView Economic Calendar via direct iframe
+        // Uses TV's confirmed working direct iframe URL (no script injection - SPA safe)
+        const EC = {
+            init: () => {
+                const container = document.getElementById('tvEcContainer');
+                if (!container || container.dataset.loaded) return;
+                container.dataset.loaded = '1';
+                const cfg = {
+                    colorTheme: 'light',
+                    isTransparent: true,
+                    locale: 'en',
+                    width: '100%',
+                    height: '500',
+                    importanceFilter: '-1,0,1,2',
+                    countryFilter: 'us,eu,gb,ch,jp,au,ca,nz,cn'
+                };
+                const iframe = document.createElement('iframe');
+                iframe.src = 'https://s.tradingview.com/embed-widget/economic-calendar/?locale=en#' + encodeURIComponent(JSON.stringify(cfg));
+                iframe.style.cssText = 'width:100%;height:500px;border:none;display:block;';
+                iframe.setAttribute('allowtransparency', 'true');
+                iframe.setAttribute('frameborder', '0');
+                iframe.setAttribute('scrolling', 'no');
+                container.innerHTML = '';
+                container.appendChild(iframe);
+            },
+            setFilter: () => {},
+            refreshCustomAssets: () => {}
+        };
         // ══════════════════════════════════════════════════════════
         // DISCORD MODULE (DC)
         // Two channels via Cloudflare Worker proxy
